@@ -1,0 +1,1745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>像素冒险·最终版 - Pixel Adventure</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0d1117;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            padding: 20px;
+        }
+
+        .game-wrapper {
+            position: relative;
+            background: #161b22;
+            padding: 16px;
+            border: 3px solid #30363d;
+            border-radius: 6px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: linear-gradient(180deg, #21262d, #161b22);
+            border: 2px solid #30363d;
+            margin-bottom: 8px;
+        }
+
+        .hud-item {
+            color: #c9d1d9;
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .hud-item span {
+            color: #58a6ff;
+        }
+
+        .health-bar {
+            display: flex;
+            gap: 4px;
+        }
+
+        .heart {
+            width: 16px;
+            height: 16px;
+            background: #f85149;
+            clip-path: polygon(50% 100%, 0% 35%, 25% 0%, 50% 20%, 75% 0%, 100% 35%);
+        }
+
+        .heart.empty {
+            background: #30363d;
+        }
+
+        #gameCanvas {
+            display: block;
+            border: 2px solid #30363d;
+            image-rendering: pixelated;
+        }
+
+        .hud-bottom {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: #21262d;
+            border: 2px solid #30363d;
+            text-align: center;
+            color: #8b949e;
+            font-size: 13px;
+        }
+
+        .hud-bottom kbd {
+            background: #30363d;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #c9d1d9;
+            font-size: 12px;
+            margin: 0 2px;
+        }
+
+        /* 对话框 */
+        .dialog-box {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 720px;
+            background: rgba(13, 17, 23, 0.95);
+            border: 3px solid #58a6ff;
+            padding: 16px 20px;
+            color: #c9d1d9;
+            font-size: 14px;
+            line-height: 1.6;
+            z-index: 20;
+            display: none;
+        }
+
+        .dialog-box.show {
+            display: block;
+        }
+
+        .dialog-name {
+            color: #58a6ff;
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .dialog-tip {
+            text-align: right;
+            color: #8b949e;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        /* 背包界面 */
+        .inventory-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 500px;
+            background: rgba(13, 17, 23, 0.98);
+            border: 3px solid #58a6ff;
+            padding: 20px;
+            z-index: 30;
+            display: none;
+        }
+
+        .inventory-panel.show {
+            display: block;
+        }
+
+        .inv-title {
+            color: #58a6ff;
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+
+        .inv-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #30363d;
+        }
+
+        .inv-tab {
+            padding: 8px 16px;
+            color: #8b949e;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+
+        .inv-tab.active {
+            color: #58a6ff;
+            border-bottom-color: #58a6ff;
+        }
+
+        .inv-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .inv-slot {
+            width: 64px;
+            height: 64px;
+            background: #21262d;
+            border: 2px solid #30363d;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .inv-slot:hover {
+            border-color: #58a6ff;
+        }
+
+        .inv-slot.equipped {
+            border-color: #3fb950;
+        }
+
+        .item-icon {
+            width: 32px;
+            height: 32px;
+            image-rendering: pixelated;
+        }
+
+        .item-count {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            color: white;
+            font-size: 11px;
+            font-weight: bold;
+            text-shadow: 1px 1px 0 black;
+        }
+
+        .item-name {
+            font-size: 10px;
+            color: #8b949e;
+            margin-top: 2px;
+        }
+
+        .craft-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px solid #30363d;
+        }
+
+        .craft-title {
+            color: #d29922;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .craft-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .craft-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px;
+            background: #21262d;
+            border: 1px solid #30363d;
+        }
+
+        .craft-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #c9d1d9;
+            font-size: 13px;
+        }
+
+        .craft-btn {
+            padding: 4px 12px;
+            background: #238636;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: monospace;
+        }
+
+        .craft-btn:disabled {
+            background: #30363d;
+            color: #8b949e;
+            cursor: not-allowed;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            color: #8b949e;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        /* 开始/结束界面 */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(13, 17, 23, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+
+        .overlay.hidden {
+            display: none;
+        }
+
+        .game-title {
+            font-size: 42px;
+            color: #58a6ff;
+            text-shadow: 4px 4px 0 #0d284e;
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+        }
+
+        .game-subtitle {
+            color: #8b949e;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .main-btn {
+            padding: 12px 40px;
+            background: linear-gradient(180deg, #238636, #2ea043);
+            color: white;
+            border: none;
+            border-bottom: 4px solid #196c2e;
+            font-size: 16px;
+            font-family: monospace;
+            cursor: pointer;
+            letter-spacing: 2px;
+            margin: 5px;
+        }
+
+        .main-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .notification {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(46, 160, 67, 0.9);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            z-index: 40;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .notification.show {
+            opacity: 1;
+        }
+
+        .notification.warn {
+            background: rgba(210, 153, 34, 0.9);
+        }
+    </style>
+</head>
+<body>
+    <div class="game-wrapper">
+        <div class="hud-top">
+            <div class="hud-item">关卡: <span id="levelDisplay">1</span></div>
+            <div class="hud-item">金币: <span id="coinDisplay">0</span></div>
+            <div class="health-bar" id="healthBar">
+                <div class="heart"></div>
+                <div class="heart"></div>
+                <div class="heart"></div>
+            </div>
+            <div class="hud-item">按 <kbd>I</kbd> 背包</div>
+        </div>
+        
+        <canvas id="gameCanvas" width="800" height="480"></canvas>
+        
+        <div class="hud-bottom">
+            <kbd>← →</kbd> 移动 | <kbd>空格/↑</kbd> 跳跃 | <kbd>E</kbd> 交互 | <kbd>I</kbd> 背包 | <kbd>R</kbd> 重来
+        </div>
+
+        <!-- 对话框 -->
+        <div class="dialog-box" id="dialogBox">
+            <div class="dialog-name" id="dialogName">NPC</div>
+            <div id="dialogText">对话内容</div>
+            <div class="dialog-tip">按 空格 或 E 继续</div>
+        </div>
+
+        <!-- 背包界面 -->
+        <div class="inventory-panel" id="inventoryPanel">
+            <div class="close-btn" onclick="toggleInventory()">✕</div>
+            <div class="inv-title">背包 & 合成</div>
+            <div class="inv-tabs">
+                <div class="inv-tab active" onclick="switchTab('items')">物品</div>
+                <div class="inv-tab" onclick="switchTab('equip')">装备</div>
+                <div class="inv-tab" onclick="switchTab('craft')">合成</div>
+            </div>
+            <div id="itemsTab">
+                <div class="inv-grid" id="itemsGrid"></div>
+            </div>
+            <div id="equipTab" style="display:none;">
+                <div class="inv-grid" id="equipGrid"></div>
+            </div>
+            <div id="craftTab" style="display:none;">
+                <div class="craft-list" id="craftList"></div>
+            </div>
+        </div>
+
+        <!-- 通知 -->
+        <div class="notification" id="notification"></div>
+
+        <!-- 开始界面 -->
+        <div class="overlay" id="startScreen">
+            <div class="game-title">像素冒险·最终版</div>
+            <div class="game-subtitle">收集 · 合成 · 探索 · 隐藏支线</div>
+            <button class="main-btn" onclick="startGame()">开始冒险</button>
+        </div>
+
+        <!-- 游戏结束 -->
+        <div class="overlay hidden" id="gameOver">
+            <div class="game-title" style="color:#f85149;">游戏结束</div>
+            <div class="game-subtitle">最终金币: <span id="finalScore">0</span></div>
+            <button class="main-btn" onclick="restartGame()">重新开始</button>
+        </div>
+
+        <!-- 通关 -->
+        <div class="overlay hidden" id="winScreen">
+            <div class="game-title" style="color:#3fb950;">恭喜通关!</div>
+            <div class="game-subtitle">总金币: <span id="totalCoins">0</span></div>
+            <button class="main-btn" onclick="restartGame()">再玩一次</button>
+        </div>
+    </div>
+
+    <script>
+        // ========== 基础配置 ==========
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const TILE = 32;
+        const GRAVITY = 0.6;
+        const JUMP_BASE = -12;
+        const SPEED_BASE = 2.5;
+        const COLS = 25;
+        const ROWS = 15;
+
+        // ========== 游戏状态 ==========
+        let gameRunning = false;
+        let gamePaused = false;
+        let currentLevel = 0;
+        let coins = 0;
+        let maxHealth = 3;
+        let health = 3;
+        let invincible = 0;
+
+        // 玩家属性加成
+        let bonus = {
+            speed: 0,
+            jump: 0,
+            defense: 0,
+            dodgeChance: 0 // 闪避概率（水晶护符）
+        };
+
+        // ========== 玩家对象 ==========
+        const player = {
+            x: 64, y: 320,
+            w: 24, h: 28,
+            vx: 0, vy: 0,
+            onGround: false,
+            facing: 1,
+            frame: 0, frameTimer: 0
+        };
+
+        const keys = {
+            left: false, right: false,
+            jump: false, interact: false
+        };
+
+        // ========== 物品系统 ==========
+        const itemDefs = {
+            wood: { name: '木材', icon: 'wood', stack: true },
+            stone: { name: '石头', icon: 'stone', stack: true },
+            iron: { name: '铁矿', icon: 'iron', stack: true },
+            crystal: { name: '水晶', icon: 'crystal', stack: true },
+            herb: { name: '草药', icon: 'herb', stack: true },
+            potion: { name: '生命药水', icon: 'potion', stack: true, use: healPlayer },
+            crystal_charm: { name: '水晶护符', icon: 'charm', equip: 'accessory', effect: { dodgeChance: 0.3 }, unique: true },
+            boot_speed: { name: '疾风靴', icon: 'boot', equip: 'feet', effect: { speed: 1 } },
+            glove_jump: { name: '弹跳手套', icon: 'glove', equip: 'hands', effect: { jump: 2 } },
+            armor_iron: { name: '铁甲', icon: 'armor', equip: 'body', effect: { defense: 1 } },
+            sword: { name: '铁剑', icon: 'sword', equip: 'weapon', effect: { damage: 1 } }
+        };
+
+        let inventory = {};
+        let equipment = {
+            weapon: null,
+            body: null,
+            hands: null,
+            feet: null,
+            accessory: null
+        };
+
+        // 合成配方
+        const recipes = [
+            { result: 'potion', ingredients: { herb: 2 }, name: '生命药水' },
+            { result: 'boot_speed', ingredients: { wood: 2, herb: 1 }, name: '疾风靴' },
+            { result: 'glove_jump', ingredients: { stone: 2, crystal: 1 }, name: '弹跳手套' },
+            { result: 'armor_iron', ingredients: { iron: 3, stone: 2 }, name: '铁甲' },
+            { result: 'sword', ingredients: { iron: 2, wood: 1 }, name: '铁剑' }
+        ];
+
+        // ========== NPC对话数据 ==========
+        const npcDialogs = {
+            elder: [
+                { name: '村长爷爷', text: '欢迎来到像素大陆，年轻的冒险者！' },
+                { name: '村长爷爷', text: '这片土地上藏着许多宝藏，也潜伏着危险。' },
+                { name: '村长爷爷', text: '收集木材和石头，可以合成有用的装备。' },
+                { name: '村长爷爷', text: '按 I 键打开背包，在合成面板里制作道具吧！' }
+            ],
+            blacksmith: [
+                { name: '铁匠大叔', text: '嘿！需要打造装备吗？' },
+                { name: '铁匠大叔', text: '收集铁矿和石头，我能帮你打造铁甲和利剑。' },
+                { name: '铁匠大叔', text: '传说中，水晶能打开被封印的古老石门...' },
+                { name: '铁匠大叔', text: '不过那都是老一辈的传说了，谁知道真假呢。' }
+            ],
+            witch: [
+                { name: '森林女巫', text: '咯咯咯...年轻人，需要药水吗？' },
+                { name: '森林女巫', text: '用草药可以炼制恢复生命的药水。' },
+                { name: '森林女巫', text: '受伤的时候喝一瓶，马上就能恢复元气！' }
+            ],
+            mystery: [
+                { name: '神秘旅者', text: '...你找到了这里。' },
+                { name: '神秘旅者', text: '看来你和这块水晶之间，有着特殊的联系。' },
+                { name: '神秘旅者', text: '这个护符送给你，它会在危险时保护你。' },
+                { name: '神秘旅者', text: '...还有，别相信村长说的一切。' },
+                { name: '神秘旅者', text: '真正的出口，在最深处。' }
+            ]
+        };
+
+        let dialogActive = false;
+        let dialogCurrent = [];
+        let dialogIndex = 0;
+        let nearNPC = null;
+
+        // ========== 关卡数据 ==========
+        // 0=空 1=地面 2=砖块 3=金币 4=敌人 5=终点 6=尖刺 7=弹簧 8=木材 9=石头 10=铁矿 11=水晶 12=草药
+        // 13=NPC长老 14=NPC铁匠 15=NPC女巫 16=飞行敌人 17=隐藏墙(可破坏) 18=NPC神秘人
+        const levels = [
+            // 第1关 - 入门
+            {
+                map: [
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5],
+                    [0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,3,0,0,0,0,0,2,2,2],
+                    [0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0],
+                    [0,0,0,0,8,0,0,0,0,0,0,0,12,0,0,0,0,0,0,9,0,0,0,0,0],
+                    [0,0,0,2,2,2,0,0,0,0,0,2,2,2,0,0,0,0,2,2,2,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,2,2,2,2,0,0,0,13,0,0,2,2,2,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+                ],
+                playerStart: { x: 64, y: 320 }
+            },
+            // 第2关 - 进阶（含隐藏支线）
+            {
+                map: [
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2],
+                    [0,0,0,0,0,0,0,0,3,3,0,0,0,0,0,0,3,3,0,0,11,0,0,0,0],
+                    [0,0,0,0,0,0,0,2,2,2,2,0,0,0,0,2,2,2,2,2,2,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,0,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,0,0],
+                    [0,0,0,0,0,0,16,0,0,0,0,0,0,0,0,0,16,0,2,2,2,0,0,0,0],
+                    [0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,14,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [17,0,0,0,0,0,0,0,6,6,2,2,2,2,2,0,0,0,6,6,0,0,0,0,0],
+                    [17,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+                ],
+                playerStart: { x: 64, y: 320 },
+                secretWalls: [{x: 0, y: 12}, {x: 0, y: 13}], // 可破坏的隐藏墙坐标
+                secretRoom: {
+                    npc: {x: 32, y: 380, id: 'mystery', name: '神秘旅者'},
+                    bonusCoins: 10,
+                    reward: 'crystal_charm'
+                }
+            },
+            // 第3关 - 挑战
+            {
+                map: [
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2,2,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,3,3,0,0,7,0,0,0,0,0,0,0,11,0,0,0,0],
+                    [0,0,0,0,0,0,0,2,2,2,2,0,0,0,0,0,0,0,0,2,2,2,0,0,0],
+                    [0,0,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,2,2,2,0,0,0,0,0,0,0,0,12,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,4,0,0,0,0,2,2,2,0,0,4,0,0,0,9,0,0,0,0],
+                    [0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,2,2,2,0,2,2,2,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,16,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,15,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [0,0,0,0,6,6,0,0,0,0,2,2,2,2,0,0,0,6,6,0,0,0,0,0,0],
+                    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+                ],
+                playerStart: { x: 64, y: 320 }
+            }
+        ];
+
+        // ========== 实体对象 ==========
+        let platforms = [];
+        let secretWalls = []; // 隐藏墙
+        let coinsArr = [];
+        let enemies = [];
+        let flyEnemies = [];
+        let spikes = [];
+        let springs = [];
+        let items = [];
+        let npcs = [];
+        let goal = null;
+        let particles = [];
+        let secretRoomActive = false;
+
+        // ========== 加载关卡 ==========
+        function loadLevel(idx) {
+            const lv = levels[idx];
+            platforms = [];
+            secretWalls = [];
+            coinsArr = [];
+            enemies = [];
+            flyEnemies = [];
+            spikes = [];
+            springs = [];
+            items = [];
+            npcs = [];
+            goal = null;
+            particles = [];
+            nearNPC = null;
+            secretRoomActive = false;
+
+            player.x = lv.playerStart.x;
+            player.y = lv.playerStart.y;
+            player.vx = 0;
+            player.vy = 0;
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const t = lv.map[r][c];
+                    const x = c * TILE, y = r * TILE;
+                    
+                    switch(t) {
+                        case 1: platforms.push({x,y,w:TILE,h:TILE,type:'ground'}); break;
+                        case 2: platforms.push({x,y,w:TILE,h:TILE,type:'brick'}); break;
+                        case 3: coinsArr.push({x:x+8,y:y+8,w:16,h:16,collected:false,frame:0}); break;
+                        case 4: enemies.push({x:x+4,y:y+8,w:24,h:24,vx:1.2,sx:x+4,range:64,alive:true}); break;
+                        case 5: goal = {x:x+8,y:y-32,w:16,h:64}; break;
+                        case 6: spikes.push({x:x+4,y:y+20,w:24,h:12}); break;
+                        case 7: springs.push({x:x+6,y:y+20,w:20,h:12,compressed:0}); break;
+                        case 8: items.push({x:x+8,y:y+12,w:16,h:16,type:'wood',collected:false}); break;
+                        case 9: items.push({x:x+8,y:y+12,w:16,h:16,type:'stone',collected:false}); break;
+                        case 10: items.push({x:x+8,y:y+12,w:16,h:16,type:'iron',collected:false}); break;
+                        case 11: items.push({x:x+8,y:y+12,w:16,h:16,type:'crystal',collected:false}); break;
+                        case 12: items.push({x:x+8,y:y+12,w:16,h:16,type:'herb',collected:false}); break;
+                        case 13: npcs.push({x:x+8,y:y-4,w:16,h:36,id:'elder',name:'村长爷爷'}); break;
+                        case 14: npcs.push({x:x+8,y:y-4,w:16,h:36,id:'blacksmith',name:'铁匠大叔'}); break;
+                        case 15: npcs.push({x:x+8,y:y-4,w:16,h:36,id:'witch',name:'森林女巫'}); break;
+                        case 16: flyEnemies.push({x:x+4,y:y+4,w:24,h:20,vx:1,vy:0.5,sx:x+4,sy:y+4,range:48,phase:0,alive:true}); break;
+                        case 17: secretWalls.push({x,y,w:TILE,h:TILE,broken:false}); break;
+                        case 18: npcs.push({x:x+8,y:y-4,w:16,h:36,id:'mystery',name:'神秘旅者'}); break;
+                    }
+                }
+            }
+
+            document.getElementById('levelDisplay').textContent = idx + 1;
+            updateHUD();
+        }
+
+        // 激活隐藏房间
+        function activateSecretRoom() {
+            if (secretRoomActive) return;
+            const lv = levels[currentLevel];
+            if (!lv.secretRoom) return;
+            
+            // 破坏隐藏墙
+            secretWalls.forEach(w => {
+                w.broken = true;
+                spawnParticles(w.x + 16, w.y + 16, '#00bcd4', 15);
+            });
+            
+            // 添加隐藏NPC
+            const sr = lv.secretRoom;
+            npcs.push({
+                x: sr.npc.x,
+                y: sr.npc.y,
+                w: 16, h: 36,
+                id: sr.npc.id,
+                name: sr.npc.name,
+                secret: true
+            });
+            
+            // 额外金币
+            for (let i = 0; i < sr.bonusCoins; i++) {
+                coinsArr.push({
+                    x: 40 + (i % 5) * 20,
+                    y: 350 + Math.floor(i / 5) * 20,
+                    w: 16, h: 16,
+                    collected: false,
+                    frame: Math.random() * 10
+                });
+            }
+            
+            secretRoomActive = true;
+            showNotify('封印解除...隐藏通道开启了！', 'warn');
+        }
+
+        // ========== 绘制系统 ==========
+        function drawBackground() {
+            // 渐变天空
+            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, '#1e3a5f');
+            grad.addColorStop(0.5, '#3b6ea5');
+            grad.addColorStop(1, '#7ab8d9');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 远景山峦
+            ctx.fillStyle = 'rgba(30, 58, 95, 0.5)';
+            ctx.beginPath();
+            ctx.moveTo(0, 350);
+            ctx.lineTo(100, 280);
+            ctx.lineTo(200, 320);
+            ctx.lineTo(350, 260);
+            ctx.lineTo(500, 300);
+            ctx.lineTo(650, 250);
+            ctx.lineTo(800, 290);
+            ctx.lineTo(800, 480);
+            ctx.lineTo(0, 480);
+            ctx.fill();
+
+            // 云朵
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            drawCloud(100, 50);
+            drawCloud(400, 80);
+            drawCloud(650, 40);
+        }
+
+        function drawCloud(x, y) {
+            ctx.fillRect(x, y, 40, 12);
+            ctx.fillRect(x+8, y-8, 24, 12);
+            ctx.fillRect(x+16, y-12, 16, 8);
+        }
+
+        function drawPlatforms() {
+            platforms.forEach(p => {
+                if (p.type === 'ground') {
+                    // 草地
+                    ctx.fillStyle = '#3d8b40';
+                    ctx.fillRect(p.x, p.y, TILE, 8);
+                    ctx.fillStyle = '#4caf50';
+                    ctx.fillRect(p.x, p.y, TILE, 4);
+                    // 泥土
+                    ctx.fillStyle = '#795548';
+                    ctx.fillRect(p.x, p.y+8, TILE, TILE-8);
+                    ctx.fillStyle = '#6d4c41';
+                    ctx.fillRect(p.x+4, p.y+14, 4, 4);
+                    ctx.fillRect(p.x+20, p.y+20, 4, 4);
+                } else {
+                    // 砖块
+                    ctx.fillStyle = '#c62828';
+                    ctx.fillRect(p.x, p.y, TILE, TILE);
+                    ctx.fillStyle = '#e53935';
+                    ctx.fillRect(p.x+2, p.y+2, 12, 12);
+                    ctx.fillRect(p.x+18, p.y+2, 12, 12);
+                    ctx.fillRect(p.x+2, p.y+18, 12, 12);
+                    ctx.fillRect(p.x+18, p.y+18, 12, 12);
+                    ctx.strokeStyle = '#b71c1c';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(p.x, p.y, TILE, TILE);
+                }
+            });
+
+            // 隐藏墙
+            secretWalls.forEach(w => {
+                if (w.broken) return;
+                // 看起来和普通砖块一样
+                ctx.fillStyle = '#c62828';
+                ctx.fillRect(w.x, w.y, w.w, w.h);
+                ctx.fillStyle = '#e53935';
+                ctx.fillRect(w.x+2, w.y+2, 12, 12);
+                ctx.fillRect(w.x+18, w.y+2, 12, 12);
+                ctx.fillRect(w.x+2, w.y+18, 12, 12);
+                ctx.fillRect(w.x+18, w.y+18, 12, 12);
+                
+                // 非常淡的水晶光泽提示（只有靠近才隐约可见）
+                if (nearSecretWall()) {
+                    ctx.fillStyle = 'rgba(0, 188, 212, 0.15)';
+                    ctx.fillRect(w.x, w.y, w.w, w.h);
+                }
+            });
+        }
+
+        function nearSecretWall() {
+            for (let w of secretWalls) {
+                if (w.broken) continue;
+                const dist = Math.abs(player.x + player.w/2 - (w.x + w.w/2));
+                if (dist < 50 && Math.abs(player.y - w.y) < 40) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function drawPlayer() {
+            const px = Math.floor(player.x);
+            const py = Math.floor(player.y);
+            
+            // 无敌闪烁
+            if (invincible > 0 && Math.floor(invincible / 5) % 2) return;
+
+            // 身体
+            ctx.fillStyle = '#e53935';
+            ctx.fillRect(px+4, py+8, 16, 16);
+            // 头
+            ctx.fillStyle = '#ffb74d';
+            ctx.fillRect(px+6, py, 12, 12);
+            // 头发
+            ctx.fillStyle = '#5d4037';
+            ctx.fillRect(px+6, py, 12, 4);
+            // 眼睛
+            ctx.fillStyle = '#263238';
+            if (player.facing === 1) {
+                ctx.fillRect(px+13, py+5, 2, 3);
+            } else {
+                ctx.fillRect(px+9, py+5, 2, 3);
+            }
+
+            // 装备显示
+            if (equipment.feet) {
+                ctx.fillStyle = '#1565c0';
+                ctx.fillRect(px+5, py+24, 5, 4);
+                ctx.fillRect(px+14, py+24, 5, 4);
+            } else {
+                ctx.fillStyle = '#37474f';
+                ctx.fillRect(px+6, py+24, 4, 4);
+                ctx.fillRect(px+14, py+24, 4, 4);
+            }
+
+            if (equipment.body) {
+                ctx.fillStyle = '#607d8b';
+                ctx.fillRect(px+4, py+8, 16, 14);
+            }
+
+            if (equipment.weapon) {
+                ctx.fillStyle = '#90a4ae';
+                if (player.facing === 1) {
+                    ctx.fillRect(px+20, py+10, 4, 12);
+                } else {
+                    ctx.fillRect(px, py+10, 4, 12);
+                }
+            }
+
+            if (equipment.accessory) {
+                // 水晶护符发光效果
+                ctx.fillStyle = 'rgba(0, 188, 212, 0.3)';
+                ctx.beginPath();
+                ctx.arc(px+12, py+14, 18, 0, Math.PI*2);
+                ctx.fill();
+            }
+
+            // 走路动画
+            if (player.onGround && Math.abs(player.vx) > 0) {
+                player.frameTimer++;
+                if (player.frameTimer > 12) {
+                    player.frameTimer = 0;
+                    player.frame = (player.frame + 1) % 2;
+                }
+            }
+        }
+
+        function drawCoins() {
+            coinsArr.forEach(c => {
+                if (c.collected) return;
+                c.frame += 0.12;
+                const b = Math.sin(c.frame) * 2;
+                ctx.fillStyle = '#ffc107';
+                ctx.fillRect(c.x+2, c.y+b, 12, 16);
+                ctx.fillStyle = '#ffd54f';
+                ctx.fillRect(c.x+4, c.y+2+b, 8, 12);
+                ctx.fillStyle = '#ff8f00';
+                ctx.fillRect(c.x+6, c.y+4+b, 4, 8);
+            });
+        }
+
+        function drawEnemies() {
+            enemies.forEach(e => {
+                if (!e.alive) return;
+                // 身体
+                ctx.fillStyle = '#d32f2f';
+                ctx.fillRect(e.x, e.y+4, 24, 20);
+                // 眼睛
+                ctx.fillStyle = 'white';
+                ctx.fillRect(e.x+4, e.y+8, 5, 5);
+                ctx.fillRect(e.x+15, e.y+8, 5, 5);
+                ctx.fillStyle = '#263238';
+                ctx.fillRect(e.x+6, e.y+10, 2, 2);
+                ctx.fillRect(e.x+17, e.y+10, 2, 2);
+                // 脚
+                ctx.fillStyle = '#b71c1c';
+                ctx.fillRect(e.x+2, e.y+20, 6, 4);
+                ctx.fillRect(e.x+16, e.y+20, 6, 4);
+            });
+        }
+
+        function drawFlyEnemies() {
+            flyEnemies.forEach(e => {
+                if (!e.alive) return;
+                ctx.fillStyle = '#7b1fa2';
+                ctx.fillRect(e.x+4, e.y+4, 16, 12);
+                // 翅膀动画
+                const wing = Math.sin(e.phase) * 3;
+                ctx.fillStyle = '#9c27b0';
+                ctx.fillRect(e.x, e.y+2+wing, 6, 8);
+                ctx.fillRect(e.x+18, e.y+2-wing, 6, 8);
+                // 眼睛
+                ctx.fillStyle = '#ffeb3b';
+                ctx.fillRect(e.x+7, e.y+7, 3, 3);
+                ctx.fillRect(e.x+14, e.y+7, 3, 3);
+            });
+        }
+
+        function drawSpikes() {
+            spikes.forEach(s => {
+                ctx.fillStyle = '#455a64';
+                for (let i = 0; i < 4; i++) {
+                    const sx = s.x + i * 6;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, s.y + s.h);
+                    ctx.lineTo(sx + 3, s.y);
+                    ctx.lineTo(sx + 6, s.y + s.h);
+                    ctx.fill();
+                }
+            });
+        }
+
+        function drawSprings() {
+            springs.forEach(s => {
+                const h = s.compressed > 0 ? 6 : 12;
+                const y = s.compressed > 0 ? s.y + 6 : s.y;
+                ctx.fillStyle = '#ff9800';
+                ctx.fillRect(s.x, y, s.w, h);
+                ctx.fillStyle = '#ffb74d';
+                ctx.fillRect(s.x+2, y+2, s.w-4, 3);
+            });
+        }
+
+        function drawItems() {
+            items.forEach(it => {
+                if (it.collected) return;
+                const bob = Math.sin(Date.now() / 300 + it.x) * 2;
+                
+                switch(it.type) {
+                    case 'wood':
+                        ctx.fillStyle = '#8d6e63';
+                        ctx.fillRect(it.x, it.y+bob, 16, 12);
+                        ctx.fillStyle = '#a1887f';
+                        ctx.fillRect(it.x+2, it.y+2+bob, 4, 4);
+                        break;
+                    case 'stone':
+                        ctx.fillStyle = '#78909c';
+                        ctx.fillRect(it.x+2, it.y+2+bob, 12, 10);
+                        ctx.fillStyle = '#90a4ae';
+                        ctx.fillRect(it.x+4, it.y+4+bob, 4, 4);
+                        break;
+                    case 'iron':
+                        ctx.fillStyle = '#546e7a';
+                        ctx.fillRect(it.x, it.y+2+bob, 16, 10);
+                        ctx.fillStyle = '#78909c';
+                        ctx.fillRect(it.x+2, it.y+4+bob, 6, 4);
+                        break;
+                    case 'crystal':
+                        ctx.fillStyle = '#00bcd4';
+                        ctx.fillRect(it.x+4, it.y+bob, 8, 14);
+                        ctx.fillStyle = '#4dd0e1';
+                        ctx.fillRect(it.x+6, it.y+2+bob, 4, 6);
+                        // 发光
+                        ctx.fillStyle = 'rgba(0, 188, 212, 0.2)';
+                        ctx.fillRect(it.x+2, it.y-2+bob, 12, 18);
+                        break;
+                    case 'herb':
+                        ctx.fillStyle = '#4caf50';
+                        ctx.fillRect(it.x+6, it.y+4+bob, 4, 10);
+                        ctx.fillRect(it.x+2, it.y+2+bob, 4, 6);
+                        ctx.fillRect(it.x+10, it.y+2+bob, 4, 6);
+                        break;
+                }
+            });
+        }
+
+        function drawNPCs() {
+            npcs.forEach(n => {
+                // 身体
+                ctx.fillStyle = n.id === 'elder' ? '#1565c0' : 
+                               n.id === 'blacksmith' ? '#4e342e' : 
+                               n.id === 'witch' ? '#6a1b9a' : '#212121';
+                ctx.fillRect(n.x, n.y+12, n.w, 24);
+                // 头
+                ctx.fillStyle = '#ffcc80';
+                ctx.fillRect(n.x+2, n.y, 12, 12);
+                
+                // 特征
+                if (n.id === 'elder') {
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(n.x+2, n.y, 12, 4);
+                } else if (n.id === 'blacksmith') {
+                    ctx.fillStyle = '#3e2723';
+                    ctx.fillRect(n.x+2, n.y, 12, 4);
+                } else if (n.id === 'witch') {
+                    ctx.fillStyle = '#4a148c';
+                    ctx.fillRect(n.x, n.y-4, 16, 6);
+                } else if (n.id === 'mystery') {
+                    // 神秘人兜帽
+                    ctx.fillStyle = '#212121';
+                    ctx.fillRect(n.x, n.y-2, 16, 10);
+                    ctx.fillStyle = '#00bcd4';
+                    ctx.fillRect(n.x+4, n.y+4, 8, 2); // 发光的眼睛
+                }
+
+                // 交互提示
+                if (nearNPC === n) {
+                    ctx.fillStyle = 'white';
+                    ctx.font = '10px monospace';
+                    ctx.fillText('E', n.x+4, n.y-8);
+                }
+            });
+        }
+
+        function drawGoal() {
+            if (!goal) return;
+            // 旗杆
+            ctx.fillStyle = '#bdbdbd';
+            ctx.fillRect(goal.x+6, goal.y, 4, 64);
+            // 旗帜飘动
+            const wave = Math.sin(Date.now() / 200) * 2;
+            ctx.fillStyle = '#f44336';
+            ctx.fillRect(goal.x+10, goal.y+4+wave, 20, 16);
+            ctx.fillStyle = '#c62828';
+            ctx.fillRect(goal.x+14, goal.y+8+wave, 12, 8);
+        }
+
+        function drawParticles() {
+            // 倒序遍历，避免splice导致索引错误
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.2;
+                p.life--;
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / p.maxLife;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        function spawnParticles(x, y, color, count=8) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4 - 2,
+                    color,
+                    size: 3 + Math.random() * 3,
+                    life: 20 + Math.random() * 10,
+                    maxLife: 30
+                });
+            }
+        }
+
+        // ========== 碰撞检测 ==========
+        function collide(a, b) {
+            return a.x < b.x + b.w && a.x + a.w > b.x &&
+                   a.y < b.y + b.h && a.y + a.h > b.y;
+        }
+
+        // ========== 更新逻辑 ==========
+        function updatePlayer() {
+            if (gamePaused || dialogActive) return;
+            
+            const speed = SPEED_BASE + bonus.speed;
+            const jump = JUMP_BASE - bonus.jump;
+
+            if (keys.left) {
+                player.vx = -speed;
+                player.facing = -1;
+            } else if (keys.right) {
+                player.vx = speed;
+                player.facing = 1;
+            } else {
+                player.vx = 0;
+            }
+
+            if (keys.jump && player.onGround) {
+                player.vy = jump;
+                player.onGround = false;
+            }
+
+            player.vy += GRAVITY;
+
+            // 水平移动
+            player.x += player.vx;
+            
+            // 普通平台碰撞
+            platforms.forEach(p => {
+                if (collide(player, p)) {
+                    if (player.vx > 0) player.x = p.x - player.w;
+                    else if (player.vx < 0) player.x = p.x + p.w;
+                }
+            });
+            
+            // 隐藏墙碰撞（未破坏时）
+            secretWalls.forEach(w => {
+                if (w.broken) return;
+                if (collide(player, w)) {
+                    if (player.vx > 0) player.x = w.x - player.w;
+                    else if (player.vx < 0) player.x = w.x + w.w;
+                }
+            });
+
+            // 垂直移动
+            player.y += player.vy;
+            player.onGround = false;
+            
+            platforms.forEach(p => {
+                if (collide(player, p)) {
+                    if (player.vy > 0) {
+                        player.y = p.y - player.h;
+                        player.vy = 0;
+                        player.onGround = true;
+                    } else if (player.vy < 0) {
+                        player.y = p.y + p.h;
+                        player.vy = 0;
+                    }
+                }
+            });
+            
+            // 隐藏墙垂直碰撞
+            secretWalls.forEach(w => {
+                if (w.broken) return;
+                if (collide(player, w)) {
+                    if (player.vy > 0) {
+                        player.y = w.y - player.h;
+                        player.vy = 0;
+                        player.onGround = true;
+                    } else if (player.vy < 0) {
+                        player.y = w.y + w.h;
+                        player.vy = 0;
+                    }
+                }
+            });
+
+            // 边界限制
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
+            if (player.y < 0) {
+                player.y = 0;
+                player.vy = 0;
+            }
+
+            // 掉落死亡
+            if (player.y > canvas.height) {
+                takeDamage(1);
+                respawnPlayer();
+            }
+
+            // 无敌计时
+            if (invincible > 0) invincible--;
+
+            // 金币收集
+            coinsArr.forEach(c => {
+                if (!c.collected && collide(player, c)) {
+                    c.collected = true;
+                    coins++;
+                    spawnParticles(c.x+8, c.y+8, '#ffd54f', 6);
+                    updateHUD();
+                }
+            });
+
+            // 物品收集
+            items.forEach(it => {
+                if (!it.collected && collide(player, it)) {
+                    it.collected = true;
+                    addItem(it.type, 1);
+                    spawnParticles(it.x+8, it.y+8, '#81c784', 6);
+                    showNotify('获得 ' + itemDefs[it.type].name);
+                }
+            });
+
+            // 弹簧
+            springs.forEach(s => {
+                if (collide(player, s) && player.vy > 0) {
+                    player.vy = -16;
+                    s.compressed = 10;
+                    spawnParticles(s.x+10, s.y, '#ffb74d', 4);
+                }
+                if (s.compressed > 0) s.compressed--;
+            });
+
+            // 尖刺伤害
+            if (invincible <= 0) {
+                spikes.forEach(s => {
+                    if (collide(player, s)) {
+                        takeDamage(1);
+                    }
+                });
+            }
+
+            // 地面敌人
+            enemies.forEach(e => {
+                if (!e.alive) return;
+                if (collide(player, e)) {
+                    // 严格的顶部踩死判定：从上方落下，且玩家底部高于敌人中线
+                    if (player.vy > 0 && player.y + player.h - 8 < e.y + e.h / 2) {
+                        e.alive = false;
+                        player.vy = JUMP_BASE / 2;
+                        spawnParticles(e.x+12, e.y+12, '#ef5350', 8);
+                    } else if (invincible <= 0) {
+                        takeDamage(1);
+                        // 击退
+                        player.vx = player.facing * -3;
+                        player.vy = -4;
+                    }
+                }
+            });
+
+            // 飞行敌人
+            flyEnemies.forEach(e => {
+                if (!e.alive) return;
+                if (collide(player, e) && invincible <= 0) {
+                    takeDamage(1);
+                    player.vx = player.facing * -3;
+                    player.vy = -4;
+                }
+            });
+
+            // NPC检测
+            nearNPC = null;
+            npcs.forEach(n => {
+                const dx = Math.abs(player.x + player.w/2 - (n.x + n.w/2));
+                const dy = Math.abs(player.y + player.h/2 - (n.y + n.h/2));
+                if (dx < 35 && dy < 45) {
+                    nearNPC = n;
+                }
+            });
+
+            // 终点
+            if (goal && collide(player, goal)) {
+                levelComplete();
+            }
+        }
+
+        function updateEnemies() {
+            if (gamePaused || dialogActive) return;
+            
+            enemies.forEach(e => {
+                if (!e.alive) return;
+                e.x += e.vx;
+                if (Math.abs(e.x - e.sx) > e.range) e.vx *= -1;
+            });
+        }
+
+        function updateFlyEnemies() {
+            if (gamePaused || dialogActive) return;
+            
+            flyEnemies.forEach(e => {
+                if (!e.alive) return;
+                e.phase += 0.08;
+                e.x += e.vx;
+                e.y = e.sy + Math.sin(e.phase) * e.range;
+                if (Math.abs(e.x - e.sx) > 80) e.vx *= -1;
+            });
+        }
+
+        function takeDamage(dmg) {
+            if (invincible > 0) return;
+            
+            // 水晶护符闪避判定
+            if (bonus.dodgeChance > 0 && Math.random() < bonus.dodgeChance) {
+                spawnParticles(player.x+12, player.y+14, '#00bcd4', 8);
+                showNotify('水晶护符·闪避！', 'warn');
+                invincible = 30;
+                return;
+            }
+            
+            const actual = Math.max(0, dmg - bonus.defense);
+            if (actual <= 0) {
+                invincible = 30;
+                return;
+            }
+            
+            health -= actual;
+            invincible = 60;
+            spawnParticles(player.x+12, player.y+14, '#ef5350', 10);
+            updateHUD();
+            
+            if (health <= 0) gameOver();
+        }
+
+        function healPlayer(amount = 1) {
+            health = Math.min(maxHealth, health + amount);
+            spawnParticles(player.x+12, player.y+14, '#81c784', 10);
+            updateHUD();
+            showNotify('恢复生命 +1');
+        }
+
+        function respawnPlayer() {
+            const lv = levels[currentLevel];
+            player.x = lv.playerStart.x;
+            player.y = lv.playerStart.y;
+            player.vx = 0;
+            player.vy = 0;
+        }
+
+        // ========== NPC对话 ==========
+        function startDialog(npcId) {
+            dialogCurrent = npcDialogs[npcId];
+            if (!dialogCurrent) return;
+            
+            dialogIndex = 0;
+            dialogActive = true;
+            gamePaused = true;
+            document.getElementById('dialogBox').classList.add('show');
+            updateDialogText();
+        }
+
+        function updateDialogText() {
+            const d = dialogCurrent[dialogIndex];
+            document.getElementById('dialogName').textContent = d.name;
+            document.getElementById('dialogText').textContent = d.text;
+        }
+
+        function nextDialog() {
+            dialogIndex++;
+            if (dialogIndex >= dialogCurrent.length) {
+                closeDialog();
+                // 神秘人对话结束后给奖励
+                if (dialogCurrent === npcDialogs.mystery) {
+                    giveSecretReward();
+                }
+            } else {
+                updateDialogText();
+            }
+        }
+
+        function closeDialog() {
+            dialogActive = false;
+            gamePaused = false;
+            document.getElementById('dialogBox').classList.remove('show');
+        }
+
+        function giveSecretReward() {
+            const lv = levels[currentLevel];
+            if (!lv.secretRoom) return;
+            const reward = lv.secretRoom.reward;
+            
+            if (!inventory[reward] && !equipment.accessory) {
+                equipSecretItem(reward);
+            }
+        }
+
+        function equipSecretItem(id) {
+            const def = itemDefs[id];
+            if (!def || !def.equip) return;
+            
+            equipment[def.equip] = id;
+            applyBonus(def.effect);
+            showNotify('获得了 ' + def.name + '！');
+            spawnParticles(player.x+12, player.y+14, '#00bcd4', 20);
+        }
+
+        // ========== 隐藏墙交互 ==========
+        function tryActivateSecretWall() {
+            if (!nearSecretWall()) return false;
+            if (!inventory.crystal || inventory.crystal < 1) {
+                showNotify('这面墙...似乎在共鸣？', 'warn');
+                return false;
+            }
+            
+            // 消耗一个水晶
+            removeItem('crystal', 1);
+            activateSecretRoom();
+            return true;
+        }
+
+        // ========== 物品系统 ==========
+        function addItem(id, count = 1) {
+            if (!inventory[id]) inventory[id] = 0;
+            inventory[id] += count;
+        }
+
+        function removeItem(id, count = 1) {
+            if (!inventory[id]) return false;
+            if (inventory[id] < count) return false;
+            inventory[id] -= count;
+            if (inventory[id] <= 0) delete inventory[id];
+            return true;
+        }
+
+        function equipItem(id) {
+            const def = itemDefs[id];
+            if (!def || !def.equip) return;
+            
+            // 卸下当前装备
+            if (equipment[def.equip]) {
+                const oldId = equipment[def.equip];
+                addItem(oldId, 1);
+                removeBonus(itemDefs[oldId].effect);
+            }
+            
+            // 装备新的
+            equipment[def.equip] = id;
+            removeItem(id, 1);
+            applyBonus(def.effect);
+            
+            showNotify('装备了 ' + def.name);
+            updateInventoryUI();
+        }
+
+        function applyBonus(effect) {
+            if (effect.speed) bonus.speed += effect.speed;
+            if (effect.jump) bonus.jump += effect.jump;
+            if (effect.defense) bonus.defense += effect.defense;
+            if (effect.dodgeChance) bonus.dodgeChance += effect.dodgeChance;
+        }
+
+        function removeBonus(effect) {
+            if (effect.speed) bonus.speed -= effect.speed;
+            if (effect.jump) bonus.jump -= effect.jump;
+            if (effect.defense) bonus.defense -= effect.defense;
+            if (effect.dodgeChance) bonus.dodgeChance -= effect.dodgeChance;
+        }
+
+        function canCraft(recipe) {
+            for (let mat in recipe.ingredients) {
+                if (!inventory[mat] || inventory[mat] < recipe.ingredients[mat]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function craftItem(recipe) {
+            if (!canCraft(recipe)) return;
+            for (let mat in recipe.ingredients) {
+                removeItem(mat, recipe.ingredients[mat]);
+            }
+            addItem(recipe.result, 1);
+            showNotify('合成了 ' + recipe.name);
+            updateInventoryUI();
+        }
+
+        // ========== UI更新 ==========
+        function updateHUD() {
+            document.getElementById('coinDisplay').textContent = coins;
+            
+            const bar = document.getElementById('healthBar');
+            bar.innerHTML = '';
+            for (let i = 0; i < maxHealth; i++) {
+                const h = document.createElement('div');
+                h.className = 'heart' + (i >= health ? ' empty' : '');
+                bar.appendChild(h);
+            }
+        }
+
+        function toggleInventory() {
+            const panel = document.getElementById('inventoryPanel');
+            panel.classList.toggle('show');
+            
+            if (panel.classList.contains('show')) {
+                gamePaused = true;
+                updateInventoryUI();
+            } else {
+                gamePaused = false;
+            }
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.inv-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.getElementById('itemsTab').style.display = tab === 'items' ? 'block' : 'none';
+            document.getElementById('equipTab').style.display = tab === 'equip' ? 'block' : 'none';
+            document.getElementById('craftTab').style.display = tab === 'craft' ? 'block' : 'none';
+            
+            updateInventoryUI();
+        }
+
+        function updateInventoryUI() {
+            // 物品栏
+            const grid = document.getElementById('itemsGrid');
+            grid.innerHTML = '';
+            
+            for (let id in inventory) {
+                const def = itemDefs[id];
+                const slot = document.createElement('div');
+                slot.className = 'inv-slot';
+                slot.innerHTML = `
+                    <div class="item-icon" style="background:${getItemColor(id)}"></div>
+                    <div class="item-count">${inventory[id]}</div>
+                    <div class="item-name">${def.name}</div>
+                `;
+                slot.onclick = () => {
+                    if (def.use) {
+                        def.use();
+                        removeItem(id, 1);
+                        updateInventoryUI();
+                    } else if (def.equip) {
+                        equipItem(id);
+                    }
+                };
+                grid.appendChild(slot);
+            }
+
+            // 填充空格
+            const emptySlots = Math.max(0, 12 - Object.keys(inventory).length);
+            for (let i = 0; i < emptySlots; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'inv-slot';
+                grid.appendChild(slot);
+            }
+
+            // 装备栏
+            const eqGrid = document.getElementById('equipGrid');
+            eqGrid.innerHTML = '';
+            const slots = ['weapon', 'body', 'hands', 'feet', 'accessory'];
+            const slotNames = { weapon: '武器', body: '护甲', hands: '手套', feet: '鞋子', accessory: '饰品' };
+            
+            slots.forEach(s => {
+                const slot = document.createElement('div');
+                slot.className = 'inv-slot' + (equipment[s] ? ' equipped' : '');
+                if (equipment[s]) {
+                    const def = itemDefs[equipment[s]];
+                    slot.innerHTML = `
+                        <div class="item-icon" style="background:${getItemColor(equipment[s])}"></div>
+                        <div class="item-name">${def.name}</div>
+                    `;
+                } else {
+                    slot.innerHTML = `<div class="item-name">${slotNames[s]}</div>`;
+                }
+                eqGrid.appendChild(slot);
+            });
+
+            // 合成列表
+            const craftList = document.getElementById('craftList');
+            craftList.innerHTML = '';
+            
+            recipes.forEach(r => {
+                const item = document.createElement('div');
+                item.className = 'craft-item';
+                
+                let ingText = Object.entries(r.ingredients)
+                    .map(([k,v]) => `${itemDefs[k].name}×${v}`)
+                    .join(' + ');
+                
+                item.innerHTML = `
+                    <div class="craft-info">
+                        <span>${r.name}</span>
+                        <span style="color:#8b949e;font-size:11px;">${ingText}</span>
+                    </div>
+                    <button class="craft-btn" ${canCraft(r) ? '' : 'disabled'}>合成</button>
+                `;
+                item.querySelector('.craft-btn').onclick = () => craftItem(r);
+                craftList.appendChild(item);
+            });
+        }
+
+        function getItemColor(id) {
+            const colors = {
+                wood: '#8d6e63', stone: '#78909c', iron: '#546e7a',
+                crystal: '#00bcd4', herb: '#4caf50', potion: '#e91e63',
+                boot_speed: '#1565c0', glove_jump: '#ff9800',
+                armor_iron: '#607d8b', sword: '#90a4ae',
+                crystal_charm: '#00bcd4', charm: '#00bcd4'
+            };
+            return colors[id] || '#999';
+        }
+
+        function showNotify(text, type = 'normal') {
+            const n = document.getElementById('notification');
+            n.textContent = text;
+            n.className = 'notification show' + (type === 'warn' ? ' warn' : '');
+            setTimeout(() => n.className = 'notification', 2000);
+        }
+
+        // ========== 游戏流程 ==========
+        function levelComplete() {
+            gameRunning = false;
+            if (currentLevel >= levels.length - 1) {
+                document.getElementById('totalCoins').textContent = coins;
+                document.getElementById('winScreen').classList.remove('hidden');
+            } else {
+                currentLevel++;
+                loadLevel(currentLevel);
+                gameRunning = true;
+                showNotify('进入第 ' + (currentLevel + 1) + ' 关');
+            }
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            gamePaused = false;
+            document.getElementById('finalScore').textContent = coins;
+            document.getElementById('gameOver').classList.remove('hidden');
+        }
+
+        function startGame() {
+            document.getElementById('startScreen').classList.add('hidden');
+            currentLevel = 0;
+            coins = 0;
+            health = maxHealth;
+            inventory = {};
+            equipment = { weapon: null, body: null, hands: null, feet: null, accessory: null };
+            bonus = { speed: 0, jump: 0, defense: 0, dodgeChance: 0 };
+            invincible = 0;
+            
+            // 初始物品
+            addItem('herb', 2);
+            
+            loadLevel(currentLevel);
+            gameRunning = true;
+            gamePaused = false;
+        }
+
+        function restartGame() {
+            document.getElementById('gameOver').classList.add('hidden');
+            document.getElementById('winScreen').classList.add('hidden');
+            startGame();
+        }
+
+        // ========== 主循环 ==========
+        function gameLoop() {
+            if (gameRunning) {
+                drawBackground();
+                
+                updatePlayer();
+                updateEnemies();
+                updateFlyEnemies();
+                
+                drawPlatforms();
+                drawSprings();
+                drawSpikes();
+                drawItems();
+                drawCoins();
+                drawGoal();
+                drawNPCs();
+                drawEnemies();
+                drawFlyEnemies();
+                drawPlayer();
+                drawParticles();
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ========== 输入处理 ==========
+        document.addEventListener('keydown', e => {
+            if (!gameRunning) return;
+            
+            switch(e.key) {
+                case 'ArrowLeft':
+                    if (!gamePaused && !dialogActive) keys.left = true;
+                    break;
+                case 'ArrowRight':
+                    if (!gamePaused && !dialogActive) keys.right = true;
+                    break;
+                case 'ArrowUp':
+                case ' ':
+                    e.preventDefault();
+                    if (dialogActive) {
+                        nextDialog();
+                    } else if (!gamePaused) {
+                        keys.jump = true;
+                    }
+                    break;
+                case 'e':
+                case 'E':
+                    e.preventDefault();
+                    if (dialogActive) {
+                        nextDialog();
+                    } else if (nearNPC) {
+                        startDialog(nearNPC.id);
+                    } else {
+                        tryActivateSecretWall();
+                    }
+                    break;
+                case 'i':
+                case 'I':
+                    e.preventDefault();
+                    if (!dialogActive) toggleInventory();
+                    break;
+                case 'r':
+                case 'R':
+                    if (gameRunning && !dialogActive) {
+                        loadLevel(currentLevel);
+                    }
+                    break;
+                case 'Escape':
+                    if (dialogActive) {
+                        closeDialog();
+                    }
+                    if (document.getElementById('inventoryPanel').classList.contains('show')) {
+                        toggleInventory();
+                    }
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', e => {
+            switch(e.key) {
+                case 'ArrowLeft': keys.left = false; break;
+                case 'ArrowRight': keys.right = false; break;
+                case 'ArrowUp':
+                case ' ': keys.jump = false; break;
+            }
+        });
+
+        // 启动游戏循环
+        gameLoop();
+    </script>
+</body>
+</html>
