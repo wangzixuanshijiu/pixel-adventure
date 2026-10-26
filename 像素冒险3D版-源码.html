@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>像素冒险·3D版 - Pixel Adventure 3D</title>
+<style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+        font-family:'Courier New', monospace;
+        background:#0d1117;
+        min-height:100vh;
+        display:flex; justify-content:center; align-items:center; flex-direction:column;
+        padding:16px; overflow:hidden;
+    }
+    .game-wrapper {
+        position:relative; background:#161b22; padding:14px;
+        border:3px solid #30363d; border-radius:6px;
+        box-shadow:0 0 30px rgba(0,0,0,.5);
+    }
+    .hud-top {
+        display:flex; justify-content:space-between; align-items:center;
+        padding:8px 12px; background:linear-gradient(180deg,#21262d,#161b22);
+        border:2px solid #30363d; margin-bottom:8px;
+    }
+    .hud-item { color:#c9d1d9; font-size:14px; font-weight:bold; letter-spacing:1px; }
+    .hud-item span { color:#58a6ff; }
+    .health-bar { display:flex; gap:4px; }
+    .heart { width:18px; height:18px; background:#f85149; clip-path:polygon(50% 100%,0 35%,15% 5%,50% 25%,85% 5%,100% 35%); }
+    .heart.empty { background:#30363d; }
+    #gameCanvas { display:block; border:2px solid #30363d; }
+    .hud-bottom {
+        margin-top:8px; padding:8px 12px; background:#161b22;
+        border:2px solid #30363d; color:#8b949e; font-size:12px; text-align:center;
+    }
+    kbd {
+        background:#21262d; border:1px solid #30363d; border-radius:3px;
+        padding:1px 6px; color:#c9d1d9; font-family:inherit;
+    }
+    .overlay {
+        position:absolute; inset:0; background:rgba(13,17,23,.72);
+        display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:50;
+    }
+    .overlay.hidden { display:none; }
+    .game-title { font-size:42px; color:#58a6ff; letter-spacing:6px; margin-bottom:12px; text-shadow:0 0 20px rgba(88,166,255,.5); }
+    .game-subtitle { font-size:16px; color:#8b949e; margin-bottom:28px; letter-spacing:3px; }
+    .main-btn {
+        background:#238636; color:#fff; border:none; padding:12px 44px;
+        font-size:18px; font-family:monospace; cursor:pointer; letter-spacing:3px;
+        border-radius:4px; transition:transform .15s;
+    }
+    .main-btn:hover { transform:translateY(-2px); background:#2ea043; }
+    .dialog-box {
+        position:absolute; bottom:70px; left:50%; transform:translateX(-50%);
+        width:70%; background:rgba(22,27,34,.95); border:2px solid #58a6ff;
+        border-radius:6px; padding:14px 18px; color:#c9d1d9; font-size:14px;
+        line-height:1.7; display:none; z-index:45;
+    }
+    .dialog-name { color:#58a6ff; font-weight:bold; margin-bottom:6px; }
+    .dialog-tip { color:#8b949e; font-size:11px; margin-top:8px; text-align:right; }
+    .inventory-panel {
+        position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+        width:480px; max-height:420px; overflow-y:auto;
+        background:rgba(22,27,34,.97); border:2px solid #58a6ff; border-radius:8px;
+        padding:18px; display:none; z-index:46; color:#c9d1d9;
+    }
+    .inv-title { font-size:18px; color:#58a6ff; text-align:center; margin-bottom:12px; letter-spacing:3px; }
+    .inv-tabs { display:flex; gap:6px; margin-bottom:12px; }
+    .inv-tab { flex:1; text-align:center; padding:6px; background:#21262d; border:1px solid #30363d; cursor:pointer; border-radius:4px; font-size:13px; }
+    .inv-tab.active { background:#1f6feb; color:#fff; }
+    .close-btn { position:absolute; top:10px; right:12px; cursor:pointer; color:#8b949e; font-size:16px; }
+    .close-btn:hover { color:#fff; }
+    .inv-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+    .inv-cell {
+        background:#21262d; border:1px solid #30363d; border-radius:4px;
+        padding:10px 6px; text-align:center; font-size:12px; cursor:pointer;
+    }
+    .inv-cell:hover { border-color:#58a6ff; }
+    .inv-cell .cnt { color:#ffc107; font-weight:bold; }
+    .inv-cell.equipped { border-color:#3fb950; }
+    .craft-item {
+        display:flex; justify-content:space-between; align-items:center;
+        background:#21262d; border:1px solid #30363d; border-radius:4px;
+        padding:8px 12px; margin-bottom:6px; font-size:13px;
+    }
+    .craft-btn {
+        background:#238636; color:#fff; border:none; padding:4px 14px;
+        cursor:pointer; border-radius:3px; font-family:monospace;
+    }
+    .craft-btn:disabled { background:#30363d; color:#8b949e; cursor:not-allowed; }
+    .notification {
+        position:absolute; top:60px; left:50%; transform:translateX(-50%);
+        background:rgba(46,160,67,.92); color:#fff; padding:8px 22px;
+        border-radius:4px; font-size:14px; z-index:60; opacity:0; transition:opacity .3s; pointer-events:none;
+    }
+    .notification.show { opacity:1; }
+    .notification.warn { background:rgba(210,153,34,.92); }
+    .npc-hint {
+        position:absolute; bottom:110px; left:50%; transform:translateX(-50%);
+        color:#ffc107; font-size:14px; z-index:40; display:none;
+        text-shadow:0 0 6px #000;
+    }
+</style>
+</head>
+<body>
+<div class="game-wrapper">
+    <div class="hud-top">
+        <div class="hud-item">关卡: <span id="levelDisplay">1</span></div>
+        <div class="hud-item">金币: <span id="coinDisplay">0</span></div>
+        <div class="health-bar" id="healthBar"></div>
+        <div class="hud-item">按 <kbd>I</kbd> 背包</div>
+    </div>
+
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+
+    <div class="hud-bottom">
+        <kbd>W A S D</kbd> 移动 | <kbd>空格</kbd> 跳跃 | <kbd>E</kbd> 交互 | <kbd>I</kbd> 背包 | <kbd>R</kbd> 重来 | <kbd>C</kbd> 视角回正 | 鼠标拖动旋转 · 滚轮缩放
+    </div>
+
+    <div class="dialog-box" id="dialogBox">
+        <div class="dialog-name" id="dialogName">NPC</div>
+        <div id="dialogText">对话内容</div>
+        <div class="dialog-tip">按 空格 或 E 继续</div>
+    </div>
+
+    <div class="npc-hint" id="npcHint">按 E 对话</div>
+
+    <div class="inventory-panel" id="inventoryPanel">
+        <div class="close-btn" onclick="toggleInventory()">✕</div>
+        <div class="inv-title">背包 &amp; 合成</div>
+        <div class="inv-tabs">
+            <div class="inv-tab active" onclick="switchTab('items')">物品</div>
+            <div class="inv-tab" onclick="switchTab('equip')">装备</div>
+            <div class="inv-tab" onclick="switchTab('craft')">合成</div>
+        </div>
+        <div id="itemsTab"><div class="inv-grid" id="itemsGrid"></div></div>
+        <div id="equipTab" style="display:none;"><div class="inv-grid" id="equipGrid"></div></div>
+        <div id="craftTab" style="display:none;"><div class="craft-list" id="craftList"></div></div>
+    </div>
+
+    <div class="notification" id="notification"></div>
+
+    <div class="overlay" id="startScreen">
+        <div class="game-title">像素冒险·3D版</div>
+        <div class="game-subtitle">收集 · 合成 · 探索 · 隐藏支线（Three.js 重制）</div>
+        <button class="main-btn" id="startBtn" disabled onclick="startGame()">正在加载 3D 引擎…</button>
+        <div style="color:#8b949e;font-size:12px;margin-top:14px;" id="engineTip">首次加载需要几秒</div>
+    </div>
+
+    <div class="overlay hidden" id="gameOver">
+        <div class="game-title" style="color:#f85149;">游戏结束</div>
+        <div class="game-subtitle">最终金币: <span id="finalScore">0</span></div>
+        <button class="main-btn" onclick="restartGame()">重新开始</button>
+    </div>
+
+    <div class="overlay hidden" id="winScreen">
+        <div class="game-title" style="color:#3fb950;">恭喜通关!</div>
+        <div class="game-subtitle">总金币: <span id="totalCoins">0</span></div>
+        <button class="main-btn" onclick="restartGame()">再玩一次</button>
+    </div>
+</div>
+
+<script type="module">
+// ================= 引擎加载：本地优先，CDN 兜底 =================
+const ENGINE_SOURCES = [
+    './three.module.js',                                                  // 同目录本地文件（完全离线可用）
+    'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
+    'https://unpkg.com/three@0.160.0/build/three.module.js',
+    'https://registry.npmmirror.com/three/0.160.0/files/build/three.module.js'
+];
+let THREE = null;
+async function loadEngine() {
+    for (const src of ENGINE_SOURCES) {
+        try {
+            const mod = await import(src);
+            if (mod && mod.WebGLRenderer) return mod;
+        } catch (e) {
+            console.warn('[引擎] 加载源不可用:', src, e && e.message);
+        }
+    }
+    throw new Error('无法加载 3D 引擎');
+}
+// WebGL 能力检测
+function webglOK() {
+    try {
+        const c = document.createElement('canvas');
+        return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl')));
+    } catch (e) { return false; }
+}
+try {
+    if (!webglOK()) throw new Error('当前浏览器/环境不支持 WebGL');
+    THREE = await loadEngine();
+    const btn = document.getElementById('startBtn');
+    btn.disabled = false;
+    btn.textContent = '开始冒险';
+    document.getElementById('engineTip').textContent = '引擎就绪 · WASD 移动 / 空格跳跃 / 拖动鼠标转视角';
+} catch (err) {
+    document.getElementById('startScreen').innerHTML =
+        '<div class="game-title" style="color:#f85149">引擎加载失败</div>' +
+        '<div class="game-subtitle" style="max-width:520px;line-height:1.9">' +
+        (webglOK() ? '请检查网络后刷新页面' : '当前浏览器或预览环境不支持 WebGL<br>请用最新版 Chrome / Edge 直接打开本文件') +
+        '<br><span style="font-size:12px;color:#8b949e">提示：同目录的 three.module.js 是离线引擎文件，请勿删除</span></div>';
+    throw err;
+}
+
+// ================= 基础配置 =================
+const ROWS = 15, COLS = 25, DEPTH = 5;      // 关卡网格 & 立体走廊深度
+const GRAV = 0.019, JUMP_V = 0.36, MOVE = 0.085; // 每帧(60fps)物理量, 单位=格
+const P_HX = 0.3, P_H = 1.1, P_HZ = 0.3;    // 玩家碰撞体
+
+// ================= 游戏状态 =================
+let gameRunning = false, gamePaused = false;
+let currentLevel = 0, coins = 0;
+let maxHealth = 3, health = 3, invincible = 0;
+let bonus = { speed:0, jump:0, defense:0, dodgeChance:0, damage:0 };
+let inventory = {};
+let equipment = { weapon:null, body:null, hands:null, feet:null, accessory:null };
+
+const itemDefs = {
+    wood:{name:'木材'}, stone:{name:'石头'}, iron:{name:'铁矿'}, crystal:{name:'水晶'}, herb:{name:'草药'},
+    potion:{name:'生命药水', use:true},
+    crystal_charm:{name:'水晶护符', equip:'accessory', effect:{dodgeChance:0.3}},
+    boot_speed:{name:'疾风靴', equip:'feet', effect:{speed:1}},
+    glove_jump:{name:'弹跳手套', equip:'hands', effect:{jump:2}},
+    armor_iron:{name:'铁甲', equip:'body', effect:{defense:1}},
+    sword:{name:'铁剑', equip:'weapon', effect:{damage:1}}
+};
+const recipes = [
+    { result:'potion',       ingredients:{herb:2},               name:'生命药水' },
+    { result:'boot_speed',   ingredients:{wood:2, herb:1},       name:'疾风靴' },
+    { result:'glove_jump',   ingredients:{stone:2, crystal:1},   name:'弹跳手套' },
+    { result:'armor_iron',   ingredients:{iron:3, stone:2},      name:'铁甲' },
+    { result:'sword',        ingredients:{iron:2, wood:1},       name:'铁剑' }
+];
+const npcDialogs = {
+    elder:[
+        {name:'村长爷爷',text:'欢迎来到像素大陆，年轻的冒险者！'},
+        {name:'村长爷爷',text:'这片土地上藏着许多宝藏，也潜伏着危险。'},
+        {name:'村长爷爷',text:'收集木材和石头，可以合成有用的装备。'},
+        {name:'村长爷爷',text:'按 I 键打开背包，在合成面板里制作道具吧！'}
+    ],
+    blacksmith:[
+        {name:'铁匠大叔',text:'嘿！需要打造装备吗？'},
+        {name:'铁匠大叔',text:'收集铁矿和石头，我能帮你打造铁甲和利剑。'},
+        {name:'铁匠大叔',text:'传说中，水晶能打开被封印的古老石门...'},
+        {name:'铁匠大叔',text:'不过那都是老一辈的传说了，谁知道真假呢。'}
+    ],
+    witch:[
+        {name:'森林女巫',text:'咯咯咯...年轻人，需要药水吗？'},
+        {name:'森林女巫',text:'用草药可以炼制恢复生命的药水。'},
+        {name:'森林女巫',text:'受伤的时候喝一瓶，马上就能恢复元气！'}
+    ],
+    mystery:[
+        {name:'神秘旅者',text:'...你找到了这里。'},
+        {name:'神秘旅者',text:'看来你和这块水晶之间，有着特殊的联系。'},
+        {name:'神秘旅者',text:'这个护符送给你，它会在危险时保护你。'},
+        {name:'神秘旅者',text:'...还有，别相信村长说的一切。'},
+        {name:'神秘旅者',text:'真正的出口，在最深处。'}
+    ]
+};
+
+// ========== 关卡数据（沿用原版地图） ==========
+// 0=空 1=地面 2=砖块 3=金币 4=敌人 5=终点 6=尖刺 7=弹簧 8=木材 9=石头 10=铁矿 11=水晶 12=草药
+// 13=村长 14=铁匠 15=女巫 16=飞行敌人 17=隐藏墙 18=神秘旅者
+const levels = [
+    { map:[
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5],
+        [0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,3,0,0,0,0,0,2,2,2],
+        [0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0],
+        [0,0,0,0,8,0,0,0,0,0,0,0,12,0,0,0,0,0,0,9,0,0,0,0,0],
+        [0,0,0,2,2,2,0,0,0,0,0,2,2,2,0,0,0,0,2,2,2,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,2,2,2,2,0,0,0,13,0,0,2,2,2,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ], hasSecret:false },
+    { map:[
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2],
+        [0,0,0,0,0,0,0,0,3,3,0,0,0,0,0,0,3,3,0,0,11,0,0,0,0],
+        [0,0,0,0,0,0,0,2,2,2,2,0,0,0,0,2,2,2,2,2,2,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,0,0],
+        [0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,14,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [17,0,0,0,0,0,0,0,6,6,2,2,2,2,2,0,0,0,6,6,0,0,0,0,0],
+        [17,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ], hasSecret:true },
+    { map:[
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2,2,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,3,3,0,0,7,0,0,0,0,0,0,0,0,11,0,0,0,0],
+        [0,0,0,0,0,0,0,2,2,2,2,0,0,0,0,0,0,0,0,2,2,2,0,0,0],
+        [0,0,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,2,2,2,0,0,0,0,0,0,0,0,12,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,4,0,0,0,0,2,2,2,0,0,4,0,0,0,9,0,0,0,0],
+        [0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,2,2,2,0,2,2,2,0,0,0],
+        [0,0,0,0,0,0,0,0,0,16,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,15,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,6,6,0,0,0,0,2,2,2,2,0,0,0,6,6,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ], hasSecret:false }
+];
+
+// ================= Three.js 场景 =================
+const canvas = document.getElementById('gameCanvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setSize(960, 540, false);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x7ab8d9);
+scene.fog = new THREE.Fog(0x7ab8d9, 30, 90);
+
+const camera = new THREE.PerspectiveCamera(60, 960/540, 0.1, 200);
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+scene.add(ambient);
+const sun = new THREE.DirectionalLight(0xfff5e0, 1.1);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -25; sun.shadow.camera.right = 25;
+sun.shadow.camera.top = 25;  sun.shadow.camera.bottom = -25;
+scene.add(sun); scene.add(sun.target);
+
+// 共享几何体
+const boxGeo = new THREE.BoxGeometry(1,1,1);
+
+// ========== 程序化像素贴图（保留像素风） ==========
+function makeTexture(draw) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    draw(c.getContext('2d'));
+    const t = new THREE.CanvasTexture(c);
+    t.magFilter = THREE.NearestFilter;
+    t.minFilter = THREE.NearestFilter;
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+}
+function speckle(g, colors, n) {
+    for (let i = 0; i < n; i++) {
+        g.fillStyle = colors[Math.floor(Math.random()*colors.length)];
+        g.fillRect(Math.floor(Math.random()*16)*4, Math.floor(Math.random()*16)*4, 4, 4);
+    }
+}
+const texGrass = makeTexture(g => {
+    g.fillStyle = '#4caf50'; g.fillRect(0,0,64,64);
+    speckle(g, ['#66bb6a','#43a047','#388e3c','#81c784'], 90);
+});
+const texDirt = makeTexture(g => {
+    g.fillStyle = '#795548'; g.fillRect(0,0,64,64);
+    speckle(g, ['#6d4c41','#8d6e63','#5d4037'], 70);
+    g.fillStyle = '#4caf50'; g.fillRect(0,0,64,10);           // 顶部草皮沿
+    speckle(g, ['#66bb6a'], 8);
+});
+const texBrick = makeTexture(g => {
+    g.fillStyle = '#8e1b1b'; g.fillRect(0,0,64,64);           // 灰缝
+    g.fillStyle = '#c62828';
+    g.fillRect(2,2,28,28); g.fillRect(34,2,28,28);
+    g.fillRect(-14,34,28,28); g.fillRect(18,34,28,28); g.fillRect(50,34,28,28);
+    g.fillStyle = '#e53935';
+    g.fillRect(4,4,24,6); g.fillRect(36,4,24,6);
+    g.fillRect(-12,36,24,6); g.fillRect(20,36,24,6); g.fillRect(52,36,24,6);
+});
+
+const MAT = {
+    grassTop: new THREE.MeshLambertMaterial({map:texGrass}),
+    dirtSide: new THREE.MeshLambertMaterial({map:texDirt}),
+    brick:    new THREE.MeshLambertMaterial({map:texBrick}),
+    brickTop: new THREE.MeshLambertMaterial({map:texBrick}),
+    gold:     new THREE.MeshLambertMaterial({color:0xffc107, emissive:0x664d00}),
+    spike:    new THREE.MeshLambertMaterial({color:0x455a64}),
+    spring:   new THREE.MeshLambertMaterial({color:0xff9800}),
+    enemy:    new THREE.MeshLambertMaterial({color:0xd32f2f}),
+    fly:      new THREE.MeshLambertMaterial({color:0x7b1fa2}),
+    white:    new THREE.MeshLambertMaterial({color:0xffffff}),
+    dark:     new THREE.MeshLambertMaterial({color:0x263238}),
+    crystal:  new THREE.MeshLambertMaterial({color:0x00bcd4, emissive:0x00505e}),
+    wood:     new THREE.MeshLambertMaterial({color:0x8d6e63}),
+    stone:    new THREE.MeshLambertMaterial({color:0x78909c}),
+    iron:     new THREE.MeshLambertMaterial({color:0x546e7a}),
+    herb:     new THREE.MeshLambertMaterial({color:0x4caf50}),
+    skin:     new THREE.MeshLambertMaterial({color:0xffcc80}),
+    playerBody: new THREE.MeshLambertMaterial({color:0xe53935}),
+    hair:     new THREE.MeshLambertMaterial({color:0x5d4037}),
+    pole:     new THREE.MeshLambertMaterial({color:0xbdbdbd}),
+    flag:     new THREE.MeshLambertMaterial({color:0xf44336, side:THREE.DoubleSide})
+};
+const groundMats = [MAT.dirtSide,MAT.dirtSide,MAT.grassTop,MAT.dirtSide,MAT.dirtSide,MAT.dirtSide];
+const brickMats  = [MAT.brick,MAT.brick,MAT.brickTop,MAT.brick,MAT.brick,MAT.brick];
+
+// ================= 实体容器 =================
+let levelGroup = null;
+let solids = [];          // {minX,maxX,minY,maxY,minZ,maxZ, cx}
+let secretWalls = [];     // {mesh, solid, broken, cx, cy}
+let coinsArr = [], enemies = [], flyEnemies = [], spikes = [], springs = [], items = [], npcs = [];
+let goal = null, particles = [];
+let secretRoomActive = false, charmGiven = false;
+let coyoteTime = 0, jumpBuffer = 0, camShake = 0;   // 手感与反馈优化
+
+// ================= 玩家 =================
+const player = {
+    x:2.5, y:6, z:DEPTH/2, vx:0, vy:0, vz:0,
+    onGround:false, facing:1, mesh:null,
+    parts:{}
+};
+
+function buildPlayer() {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(boxGeo, MAT.playerBody);
+    body.scale.set(0.5, 0.55, 0.35); body.position.y = 0.55; body.castShadow = true;
+    const head = new THREE.Mesh(boxGeo, MAT.skin);
+    head.scale.set(0.4, 0.4, 0.35); head.position.y = 1.05; head.castShadow = true;
+    const hair = new THREE.Mesh(boxGeo, MAT.hair);
+    hair.scale.set(0.42, 0.12, 0.37); hair.position.y = 1.26;
+    const eyeL = new THREE.Mesh(boxGeo, MAT.dark);
+    eyeL.scale.set(0.06,0.08,0.05); eyeL.position.set(-0.1, 1.06, 0.19);
+    const eyeR = eyeL.clone(); eyeR.position.x = 0.1;
+    const legL = new THREE.Mesh(boxGeo, MAT.dark);
+    legL.scale.set(0.16,0.3,0.2); legL.position.set(-0.12, 0.15, 0);
+    const legR = legL.clone(); legR.position.x = 0.12;
+    // 装备挂件
+    const sword = new THREE.Mesh(boxGeo, MAT.pole);
+    sword.scale.set(0.08,0.7,0.08); sword.position.set(0.35, 0.6, 0); sword.visible = false;
+    const armor = new THREE.Mesh(boxGeo, MAT.stone);
+    armor.scale.set(0.56,0.45,0.4); armor.position.y = 0.58; armor.visible = false;
+    const boots = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({color:0x1565c0}));
+    boots.scale.set(0.4,0.12,0.24); boots.position.y = 0.06; boots.visible = false;
+    const charm = new THREE.Mesh(new THREE.OctahedronGeometry(0.12), MAT.crystal);
+    charm.position.set(0, 0.85, 0.22); charm.visible = false;
+    g.add(body, head, hair, eyeL, eyeR, legL, legR, sword, armor, boots, charm);
+    player.parts = { legL, legR, sword, armor, boots, charm, body };
+    player.mesh = g;
+    scene.add(g);
+}
+buildPlayer();
+
+// ================= 第三人称摄像机 =================
+let camYaw = 0, camPitch = 0.35, camDist = 9;
+let camDistCur = 9;                          // 平滑缩放当前值
+let smX = 2.5, smY = 7, smZ = DEPTH/2;       // 平滑跟随目标点
+let dragging = false, lastMX = 0, lastMY = 0;
+canvas.addEventListener('mousedown', e => { dragging = true; lastMX = e.clientX; lastMY = e.clientY; });
+window.addEventListener('mouseup', () => dragging = false);
+window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    camYaw   -= (e.clientX - lastMX) * 0.005;
+    camPitch += (e.clientY - lastMY) * 0.005;
+    camPitch = Math.max(-0.1, Math.min(1.2, camPitch));
+    lastMX = e.clientX; lastMY = e.clientY;
+});
+canvas.addEventListener('wheel', e => {
+    camDist = Math.max(5, Math.min(16, camDist + e.deltaY * 0.01));
+}, {passive:true});
+
+// ================= 键盘 =================
+const keys = {};
+window.addEventListener('keydown', e => {
+    if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+    keys[e.code] = true;
+    if (e.code === 'Space' && !dialogActive) jumpBuffer = 8;  // 跳跃缓冲
+    if (e.code === 'KeyI') toggleInventory();
+    if (e.code === 'KeyR' && gameRunning) reloadLevel();
+    if (e.code === 'KeyC' && gameRunning) {
+        camYaw = 0; camPitch = 0.35; camDist = 9;
+        showNotify('视角已回正');
+    }
+    if ((e.code === 'KeyE' || e.code === 'Space')) {
+        if (dialogActive) advanceDialog();
+        else if (nearNPC && gameRunning) startDialog(nearNPC);
+    }
+});
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+// ================= 建造关卡 =================
+function tileToWorld(r, c) { return { x: c + 0.5, y: (ROWS - 1 - r) + 0.5 }; }
+
+function pushSolid(x, y) {
+    solids.push({ minX:x-0.5, maxX:x+0.5, minY:y-0.5, maxY:y+0.5, minZ:0, maxZ:DEPTH, cx:x, cy:y });
+}
+// 静态方块实例化渲染：整类方块一次绘制，大幅降低 draw call
+function makeInstanced(tiles, mats) {
+    if (!tiles.length) return;
+    const im = new THREE.InstancedMesh(boxGeo, mats, tiles.length);
+    const m4 = new THREE.Matrix4();
+    tiles.forEach((t, i) => {
+        m4.makeScale(1, 1, DEPTH).setPosition(t.x, t.y, DEPTH/2);
+        im.setMatrixAt(i, m4);
+    });
+    im.castShadow = true; im.receiveShadow = true;
+    levelGroup.add(im);
+}
+function addSolidCube(x, y, mat) {
+    const mesh = new THREE.Mesh(boxGeo, mat);
+    mesh.position.set(x, y, DEPTH/2);
+    mesh.scale.set(1, 1, DEPTH);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    levelGroup.add(mesh);
+    pushSolid(x, y);
+    return { mesh, solid: solids[solids.length-1] };
+}
+
+function buildLevel(idx) {
+    if (levelGroup) { scene.remove(levelGroup); }
+    levelGroup = new THREE.Group();
+    scene.add(levelGroup);
+    solids = []; secretWalls = []; coinsArr = []; enemies = []; flyEnemies = [];
+    spikes = []; springs = []; items = []; npcs = []; goal = null; particles = [];
+    secretRoomActive = false; nearNPC = null;
+
+    const lv = levels[idx];
+    const groundTiles = [], brickTiles = [];
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            const t = lv.map[r][c];
+            if (!t) continue;
+            const {x, y} = tileToWorld(r, c);
+            const topY = y + 0.5;
+            switch(t) {
+                case 1: groundTiles.push({x, y}); pushSolid(x, y); break;
+                case 2: brickTiles.push({x, y}); pushSolid(x, y); break;
+                case 3: {
+                    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,0.08,16), MAT.gold);
+                    m.rotation.x = Math.PI/2; m.position.set(x, topY+0.5, DEPTH/2);
+                    levelGroup.add(m);
+                    coinsArr.push({mesh:m, x, y:topY+0.5, collected:false, phase:Math.random()*6});
+                    break;
+                }
+                case 4: {
+                    const g = new THREE.Group();
+                    const b = new THREE.Mesh(boxGeo, MAT.enemy); b.scale.set(0.7,0.6,0.6); b.castShadow=true;
+                    const eL = new THREE.Mesh(boxGeo, MAT.white); eL.scale.set(0.16,0.16,0.1); eL.position.set(-0.15,0.1,0.28);
+                    const eR = eL.clone(); eR.position.x = 0.15;
+                    const pL = new THREE.Mesh(boxGeo, MAT.dark); pL.scale.set(0.07,0.07,0.05); pL.position.set(-0.15,0.1,0.33);
+                    const pR = pL.clone(); pR.position.x = 0.15;
+                    const fL = new THREE.Mesh(boxGeo, MAT.dark); fL.scale.set(0.2,0.12,0.3); fL.position.set(-0.18,-0.24,0.05);
+                    const fR = fL.clone(); fR.position.x = 0.18;
+                    g.add(b, eL, eR, pL, pR, fL, fR);
+                    g.position.set(x, topY+0.3, DEPTH/2);
+                    levelGroup.add(g);
+                    enemies.push({mesh:g, x, y:topY+0.3, baseY:topY+0.3, sx:x, vx:0.035, range:2, alive:true});
+                    break;
+                }
+                case 5: {
+                    const g = new THREE.Group();
+                    const pole = new THREE.Mesh(boxGeo, MAT.pole); pole.scale.set(0.12,3,0.12); pole.position.y = 1.5;
+                    const flag = new THREE.Mesh(boxGeo, MAT.flag); flag.scale.set(0.9,0.55,0.05); flag.position.set(0.55,2.6,0);
+                    g.add(pole, flag);
+                    g.position.set(x, topY, DEPTH/2);
+                    levelGroup.add(g);
+                    goal = {mesh:g, flag, x, baseY:topY, topY};
+                    break;
+                }
+                case 6: {
+                    const g = new THREE.Group();
+                    for (let i = 0; i < 3; i++) {
+                        const cone = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.5, 4), MAT.spike);
+                        cone.position.set(-0.28 + i*0.28, 0.25, 0);
+                        g.add(cone);
+                    }
+                    g.position.set(x, topY, DEPTH/2);
+                    levelGroup.add(g);
+                    spikes.push({x, y:topY, z:DEPTH/2});
+                    break;
+                }
+                case 7: {
+                    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.45,0.25,10), MAT.spring);
+                    m.position.set(x, topY+0.12, DEPTH/2);
+                    levelGroup.add(m);
+                    springs.push({mesh:m, x, y:topY, compressed:0});
+                    break;
+                }
+                case 8: case 9: case 10: case 11: case 12: {
+                    const type = {8:'wood',9:'stone',10:'iron',11:'crystal',12:'herb'}[t];
+                    let m;
+                    if (type==='crystal') m = new THREE.Mesh(new THREE.OctahedronGeometry(0.28), MAT.crystal);
+                    else if (type==='herb') {
+                        m = new THREE.Group();
+                        const s1 = new THREE.Mesh(boxGeo, MAT.herb); s1.scale.set(0.1,0.4,0.1);
+                        const s2 = new THREE.Mesh(boxGeo, MAT.herb); s2.scale.set(0.1,0.28,0.1); s2.position.set(0.15,-0.06,0);
+                        const s3 = s2.clone(); s3.position.x = -0.15;
+                        m.add(s1,s2,s3);
+                    }
+                    else m = new THREE.Mesh(boxGeo, MAT[type]);
+                    if (type==='wood') m.scale.set(0.5,0.35,0.35);
+                    if (type==='stone') m.scale.set(0.4,0.35,0.4);
+                    if (type==='iron') m.scale.set(0.5,0.3,0.35);
+                    m.position.set(x, topY+0.4, DEPTH/2);
+                    levelGroup.add(m);
+                    items.push({mesh:m, x, y:topY+0.4, type, collected:false, phase:Math.random()*6});
+                    break;
+                }
+                case 13: case 14: case 15: case 18: {
+                    const id = {13:'elder',14:'blacksmith',15:'witch',18:'mystery'}[t];
+                    spawnNPC(id, x, topY);
+                    break;
+                }
+                case 16: {
+                    const g = new THREE.Group();
+                    const b = new THREE.Mesh(boxGeo, MAT.fly); b.scale.set(0.5,0.4,0.5); b.castShadow=true;
+                    const wL = new THREE.Mesh(boxGeo, MAT.fly); wL.scale.set(0.35,0.08,0.3); wL.position.set(-0.42,0.15,0);
+                    const wR = wL.clone(); wR.position.x = 0.42;
+                    const eL = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({color:0xffeb3b}));
+                    eL.scale.set(0.1,0.1,0.06); eL.position.set(-0.12,0.05,0.26);
+                    const eR = eL.clone(); eR.position.x = 0.12;
+                    g.add(b, wL, wR, eL, eR);
+                    g.position.set(x, topY+0.5, DEPTH/2);
+                    levelGroup.add(g);
+                    flyEnemies.push({mesh:g, wL, wR, x, y:topY+0.5, sy:topY+0.5, sx:x, vx:0.03, phase:Math.random()*6, range:1.5, alive:true});
+                    break;
+                }
+                case 17: {
+                    const sw = addSolidCube(x, y, brickMats);
+                    secretWalls.push({mesh:sw.mesh, solid:sw.solid, broken:false, cx:x, cy:y});
+                    break;
+                }
+            }
+        }
+    }
+
+    // 实例化静态方块（地面 + 砖块）
+    makeInstanced(groundTiles, groundMats);
+    makeInstanced(brickTiles, brickMats);
+
+    // 远山与云
+    for (let i = 0; i < 6; i++) {
+        const mt = new THREE.Mesh(new THREE.ConeGeometry(4+Math.random()*3, 6+Math.random()*4, 5),
+            new THREE.MeshLambertMaterial({color:0x3b6ea5}));
+        mt.position.set(i*7 - 6, 0, -18 - Math.random()*8);
+        levelGroup.add(mt);
+    }
+    for (let i = 0; i < 5; i++) {
+        const cl = new THREE.Group();
+        for (let j = 0; j < 3; j++) {
+            const b = new THREE.Mesh(boxGeo, MAT.white);
+            b.scale.set(1.6-j*0.3, 0.5, 0.8); b.position.x = j*1.1;
+            cl.add(b);
+        }
+        cl.position.set(Math.random()*COLS, 10+Math.random()*4, -6-Math.random()*6);
+        levelGroup.add(cl);
+    }
+
+    player.x = 2.5; player.y = 6; player.z = DEPTH/2;
+    player.vx = player.vy = player.vz = 0;
+    smX = player.x; smY = player.y + 1; smZ = player.z;   // 相机瞬移到位，避免横穿地图
+    camDistCur = camDist;
+    document.getElementById('levelDisplay').textContent = idx + 1;
+    updateHUD();
+}
+
+function spawnNPC(id, x, baseY, secret) {
+    const colors = { elder:0x1565c0, blacksmith:0x4e342e, witch:0x6a1b9a, mystery:0x212121 };
+    const names = { elder:'村长爷爷', blacksmith:'铁匠大叔', witch:'森林女巫', mystery:'神秘旅者' };
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({color:colors[id]}));
+    body.scale.set(0.5,0.8,0.35); body.position.y = 0.4; body.castShadow = true;
+    const head = new THREE.Mesh(boxGeo, MAT.skin);
+    head.scale.set(0.38,0.38,0.34); head.position.y = 1.0;
+    const armL = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({color:colors[id]}));
+    armL.scale.set(0.12,0.5,0.16); armL.position.set(-0.34, 0.5, 0); armL.castShadow = true;
+    const armR = armL.clone(); armR.position.x = 0.34;
+    const eyeNL = new THREE.Mesh(boxGeo, MAT.dark); eyeNL.scale.set(0.06,0.08,0.04); eyeNL.position.set(-0.09, 1.02, 0.18);
+    const eyeNR = eyeNL.clone(); eyeNR.position.x = 0.09;
+    g.add(body, head, armL, armR, eyeNL, eyeNR);
+    if (id === 'elder') {
+        const h = new THREE.Mesh(boxGeo, MAT.white); h.scale.set(0.4,0.12,0.36); h.position.y = 1.2; g.add(h);
+    } else if (id === 'witch') {
+        const hat = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.5, 6), new THREE.MeshLambertMaterial({color:0x4a148c}));
+        hat.position.y = 1.4; g.add(hat);
+    } else if (id === 'mystery') {
+        const hood = new THREE.Mesh(boxGeo, MAT.dark); hood.scale.set(0.44,0.3,0.4); hood.position.y = 1.18; g.add(hood);
+        const eye = new THREE.Mesh(boxGeo, MAT.crystal); eye.scale.set(0.2,0.06,0.05); eye.position.set(0,1.0,0.18); g.add(eye);
+    } else {
+        const h = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({color:0x3e2723})); h.scale.set(0.4,0.12,0.36); h.position.y = 1.2; g.add(h);
+    }
+    g.position.set(x, baseY, DEPTH/2);
+    levelGroup.add(g);
+    npcs.push({mesh:g, x, baseY, id, name:names[id], secret:!!secret});
+}
+
+// ================= 隐藏房间 =================
+function activateSecretRoom() {
+    if (secretRoomActive || !levels[currentLevel].hasSecret) return;
+    secretRoomActive = true;
+    secretWalls.forEach(w => {
+        w.broken = true;
+        levelGroup.remove(w.mesh);
+        solids.splice(solids.indexOf(w.solid), 1);
+        spawnParticles(w.cx, w.cy, DEPTH/2, 0x00bcd4, 12);
+    });
+    // 神秘旅者 + 奖励金币出现在墙后
+    spawnNPC('mystery', 1.5, 1, true);
+    for (let i = 0; i < 10; i++) {
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,0.08,16), MAT.gold);
+        m.rotation.x = Math.PI/2;
+        const cx = 1.2 + (i % 5) * 0.7, cy = 1.6 + Math.floor(i / 5) * 0.9;
+        m.position.set(cx, cy, DEPTH/2);
+        levelGroup.add(m);
+        coinsArr.push({mesh:m, x:cx, y:cy, collected:false, phase:Math.random()*6});
+    }
+    showNotify('封印解除...隐藏通道开启了！', 'warn');
+}
+
+// ================= 粒子 =================
+const particleGeo = new THREE.BoxGeometry(0.12,0.12,0.12);
+function spawnParticles(x, y, z, color, count=8) {
+    const mat = new THREE.MeshBasicMaterial({color});
+    for (let i = 0; i < count; i++) {
+        const m = new THREE.Mesh(particleGeo, mat);
+        m.position.set(x, y, z);
+        levelGroup.add(m);
+        particles.push({
+            mesh:m,
+            vx:(Math.random()-0.5)*0.12, vy:Math.random()*0.1, vz:(Math.random()-0.5)*0.12,
+            life:25+Math.random()*15
+        });
+    }
+}
+function updateParticles(dt) {
+    for (let i = particles.length-1; i >= 0; i--) {
+        const p = particles[i];
+        p.mesh.position.x += p.vx*dt; p.mesh.position.y += p.vy*dt; p.mesh.position.z += p.vz*dt;
+        p.vy -= 0.006*dt;
+        p.life -= dt;
+        p.mesh.scale.setScalar(Math.max(0.01, p.life/40));
+        if (p.life <= 0) { levelGroup.remove(p.mesh); particles.splice(i,1); }
+    }
+}
+
+// ================= 碰撞 =================
+function overlapSolid(s, x, y, z) {
+    return x-P_HX < s.maxX && x+P_HX > s.minX &&
+           y < s.maxY && y+P_H > s.minY &&
+           z-P_HZ < s.maxZ && z+P_HZ > s.minZ;
+}
+function nearbySolids(x) {
+    const out = [];
+    for (const s of solids) if (Math.abs(s.cx - x) < 3) out.push(s);
+    return out;
+}
+
+// ================= 背包 / 合成 =================
+function addItem(type, n) {
+    inventory[type] = (inventory[type]||0) + n;
+    renderInventory();
+}
+function recomputeBonus() {
+    bonus = { speed:0, jump:0, defense:0, dodgeChance:0, damage:0 };
+    for (const slot in equipment) {
+        const it = equipment[slot];
+        if (!it) continue;
+        const eff = itemDefs[it].effect;
+        for (const k in eff) bonus[k] += eff[k];
+    }
+    player.parts.sword.visible = !!equipment.weapon;
+    player.parts.armor.visible = !!equipment.body;
+    player.parts.boots.visible = !!equipment.feet;
+    player.parts.charm.visible = !!equipment.accessory;
+}
+let invOpen = false;
+window.toggleInventory = function() {
+    invOpen = !invOpen;
+    document.getElementById('inventoryPanel').style.display = invOpen ? 'block' : 'none';
+    if (invOpen) renderInventory();
+};
+window.switchTab = function(tab) {
+    ['items','equip','craft'].forEach(t => {
+        document.getElementById(t+'Tab').style.display = t===tab ? 'block':'none';
+    });
+    document.querySelectorAll('.inv-tab').forEach((el,i) =>
+        el.classList.toggle('active', ['items','equip','craft'][i]===tab));
+    renderInventory();
+};
+
+function renderInventory() {
+    if (!invOpen) return;
+    // 物品
+    const ig = document.getElementById('itemsGrid');
+    ig.innerHTML = '';
+    const keysInv = Object.keys(inventory).filter(k => inventory[k] > 0);
+    if (!keysInv.length) ig.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#8b949e;">空空如也</div>';
+    keysInv.forEach(k => {
+        const d = document.createElement('div');
+        d.className = 'inv-cell';
+        d.innerHTML = `${itemDefs[k].name}<br><span class="cnt">×${inventory[k]}</span>`;
+        if (itemDefs[k].use) {
+            d.title = '点击使用';
+            d.onclick = () => {
+                if (k === 'potion' && health < maxHealth) {
+                    inventory[k]--; health++;
+                    updateHUD(); showNotify('恢复了 1 点生命');
+                    renderInventory();
+                }
+            };
+        }
+        ig.appendChild(d);
+    });
+    // 装备
+    const eg = document.getElementById('equipGrid');
+    eg.innerHTML = '';
+    const slotNames = { weapon:'武器', body:'护甲', hands:'手套', feet:'靴子', accessory:'饰品' };
+    for (const slot in equipment) {
+        const d = document.createElement('div');
+        const eq = equipment[slot];
+        d.className = 'inv-cell' + (eq ? ' equipped' : '');
+        d.innerHTML = `${slotNames[slot]}<br>${eq ? itemDefs[eq].name : '<span style="color:#8b949e;">—</span>'}`;
+        eg.appendChild(d);
+    }
+    // 可穿戴物品
+    Object.keys(inventory).forEach(k => {
+        if (inventory[k] > 0 && itemDefs[k].equip) {
+            const d = document.createElement('div');
+            d.className = 'inv-cell';
+            d.innerHTML = `${itemDefs[k].name}<br><span style="color:#3fb950;">点击穿戴</span>`;
+            d.onclick = () => {
+                const slot = itemDefs[k].equip;
+                if (equipment[slot]) inventory[equipment[slot]] = (inventory[equipment[slot]]||0)+1;
+                equipment[slot] = k;
+                inventory[k]--;
+                recomputeBonus(); renderInventory();
+                showNotify('装备了 ' + itemDefs[k].name);
+            };
+            eg.appendChild(d);
+        }
+    });
+    // 合成
+    const cl = document.getElementById('craftList');
+    cl.innerHTML = '';
+    recipes.forEach(r => {
+        const can = Object.keys(r.ingredients).every(k => (inventory[k]||0) >= r.ingredients[k]);
+        const need = Object.keys(r.ingredients).map(k => `${itemDefs[k].name}×${r.ingredients[k]}`).join(' + ');
+        const d = document.createElement('div');
+        d.className = 'craft-item';
+        d.innerHTML = `<span>${r.name} <small style="color:#8b949e;">(${need})</small></span>`;
+        const btn = document.createElement('button');
+        btn.className = 'craft-btn'; btn.textContent = '合成'; btn.disabled = !can;
+        btn.onclick = () => {
+            for (const k in r.ingredients) inventory[k] -= r.ingredients[k];
+            addItem(r.result, 1);
+            showNotify('合成成功：' + r.name);
+            renderInventory();
+        };
+        d.appendChild(btn);
+        cl.appendChild(d);
+    });
+}
+
+// ================= 对话 =================
+let dialogActive = false, dialogCurrent = [], dialogIndex = 0, nearNPC = null;
+function startDialog(npc) {
+    dialogActive = true;
+    dialogCurrent = npcDialogs[npc.id];
+    dialogIndex = 0;
+    showDialogLine();
+}
+function showDialogLine() {
+    const line = dialogCurrent[dialogIndex];
+    document.getElementById('dialogName').textContent = line.name;
+    document.getElementById('dialogText').textContent = line.text;
+    document.getElementById('dialogBox').style.display = 'block';
+}
+function advanceDialog() {
+    dialogIndex++;
+    if (dialogIndex >= dialogCurrent.length) {
+        document.getElementById('dialogBox').style.display = 'none';
+        dialogActive = false;
+        jumpBuffer = 0;   // 防止对话中按空格残留跳跃
+        if (nearNPC && nearNPC.id === 'mystery' && !charmGiven) {
+            charmGiven = true;
+            addItem('crystal_charm', 1);
+            showNotify('获得 水晶护符！（在装备页穿戴）', 'warn');
+        }
+    } else showDialogLine();
+}
+
+// ================= HUD / 通知 =================
+function updateHUD() {
+    document.getElementById('coinDisplay').textContent = coins;
+    const hb = document.getElementById('healthBar');
+    hb.innerHTML = '';
+    for (let i = 0; i < maxHealth; i++) {
+        const h = document.createElement('div');
+        h.className = 'heart' + (i < health ? '' : ' empty');
+        hb.appendChild(h);
+    }
+}
+let notifyTimer = null;
+function showNotify(text, cls) {
+    const n = document.getElementById('notification');
+    n.textContent = text;
+    n.className = 'notification show' + (cls ? ' ' + cls : '');
+    clearTimeout(notifyTimer);
+    notifyTimer = setTimeout(() => n.classList.remove('show'), 2200);
+}
+
+// ================= 伤害 / 重生 =================
+function takeDamage(dmg) {
+    if (invincible > 0) return;
+    if (bonus.dodgeChance > 0 && Math.random() < bonus.dodgeChance) {
+        showNotify('水晶护符闪耀！闪避了伤害'); invincible = 60; return;
+    }
+    if (bonus.defense > 0 && Math.random() < 0.5) dmg = Math.max(0, dmg - 1);
+    if (dmg <= 0) { showNotify('铁甲抵挡了伤害'); invincible = 60; return; }
+    health -= dmg;
+    invincible = 90;
+    camShake = 10;   // 相机震动
+    updateHUD();
+    if (health <= 0) gameOver();
+}
+function respawnPlayer() {
+    player.x = 2.5; player.y = 6; player.z = DEPTH/2;
+    player.vx = player.vy = player.vz = 0;
+    smX = player.x; smY = player.y + 1; smZ = player.z;
+    camDistCur = camDist;
+}
+function gameOver() {
+    gameRunning = false;
+    document.getElementById('finalScore').textContent = coins;
+    document.getElementById('gameOver').classList.remove('hidden');
+}
+function levelComplete() {
+    spawnParticles(player.x, player.y+1, player.z, 0xffd54f, 20);
+    if (currentLevel >= levels.length - 1) {
+        gameRunning = false;
+        document.getElementById('totalCoins').textContent = coins;
+        document.getElementById('winScreen').classList.remove('hidden');
+    } else {
+        currentLevel++;
+        showNotify('进入第 ' + (currentLevel+1) + ' 关！', 'warn');
+        buildLevel(currentLevel);
+    }
+}
+function reloadLevel() {
+    health = maxHealth;
+    buildLevel(currentLevel);
+    showNotify('关卡已重置');
+}
+
+// ================= 主循环 =================
+let lastT = performance.now();
+function loop() {
+    requestAnimationFrame(loop);
+    const now = performance.now();
+    let dt = (now - lastT) / 16.67;
+    lastT = now;
+    dt = Math.min(dt, 3);
+
+    if (gameRunning && !gamePaused && !dialogActive) {
+        updatePlayer(dt);
+        updateEnemies(dt);
+    }
+    animateWorld(dt);
+    updateParticles(dt);
+    updateCamera(dt);
+    renderer.render(scene, camera);
+}
+
+function updatePlayer(dt) {
+    const speed = (MOVE + bonus.speed*0.03) * dt;
+    const jumpV = JUMP_V + bonus.jump*0.03;
+
+    // 相机相对移动
+    let mx = 0, mz = 0;
+    if (keys['KeyW'] || keys['ArrowUp']) mz -= 1;
+    if (keys['KeyS'] || keys['ArrowDown']) mz += 1;
+    if (keys['KeyA'] || keys['ArrowLeft']) mx -= 1;
+    if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
+    if (mx || mz) {
+        const len = Math.hypot(mx, mz); mx/=len; mz/=len;
+        const cos = Math.cos(camYaw), sin = Math.sin(camYaw);
+        player.vx = (mx*cos - mz*sin) * speed;
+        player.vz = (mx*sin + mz*cos) * speed;
+        player.facing = player.vx >= 0 ? 1 : -1;
+        // 行走摆动
+        if (player.onGround) {
+            const t = performance.now()/90;
+            player.parts.legL.position.z = Math.sin(t)*0.12;
+            player.parts.legR.position.z = -Math.sin(t)*0.12;
+        }
+    } else {
+        player.vx = 0; player.vz = 0;
+        player.parts.legL.position.z = 0; player.parts.legR.position.z = 0;
+    }
+
+    // 跳跃：缓冲 + 土狼时间（走出平台边缘后短暂可跳）
+    jumpBuffer -= dt;
+    coyoteTime = player.onGround ? 7 : coyoteTime - dt;
+    if (jumpBuffer > 0 && coyoteTime > 0) {
+        player.vy = jumpV;
+        player.onGround = false;
+        coyoteTime = 0;
+        jumpBuffer = 0;
+    }
+    player.vy -= GRAV * dt;
+
+    // X 轴
+    player.x += player.vx;
+    for (const s of nearbySolids(player.x)) {
+        if (overlapSolid(s, player.x, player.y, player.z)) {
+            if (player.vx > 0) player.x = s.minX - P_HX;
+            else if (player.vx < 0) player.x = s.maxX + P_HX;
+        }
+    }
+    // Z 轴
+    player.z += player.vz;
+    for (const s of nearbySolids(player.x)) {
+        if (overlapSolid(s, player.x, player.y, player.z)) {
+            if (player.vz > 0) player.z = s.minZ - P_HZ;
+            else if (player.vz < 0) player.z = s.maxZ + P_HZ;
+        }
+    }
+    player.z = Math.max(P_HZ, Math.min(DEPTH - P_HZ, player.z));
+    // Y 轴
+    const prevVy = player.vy;
+    player.y += player.vy * dt;
+    player.onGround = false;
+    for (const s of nearbySolids(player.x)) {
+        if (overlapSolid(s, player.x, player.y, player.z)) {
+            if (player.vy <= 0) {
+                player.y = s.maxY; player.vy = 0;
+                if (!player.onGround && prevVy < -0.3) {
+                    // 落地扬尘
+                    spawnParticles(player.x, player.y + 0.05, player.z, 0xd7ccc8, 6);
+                }
+                player.onGround = true;
+            }
+            else { player.y = s.minY - P_H; player.vy = 0; }
+        }
+    }
+    if (player.x < P_HX) player.x = P_HX;
+    if (player.x > COLS - P_HX) player.x = COLS - P_HX;
+    if (player.y < -8) { takeDamage(1); respawnPlayer(); }
+
+    if (invincible > 0) invincible -= dt;
+    player.mesh.visible = !(invincible > 0 && Math.floor(invincible/6) % 2);
+    player.mesh.position.set(player.x, player.y, player.z);
+    player.mesh.rotation.y = player.facing === 1 ? 0.3 : Math.PI - 0.3;
+
+    // 金币
+    for (const c of coinsArr) {
+        if (c.collected) continue;
+        if (Math.abs(player.x - c.x) < 0.7 && Math.abs(player.y + 0.5 - c.y) < 0.9) {
+            c.collected = true;
+            levelGroup.remove(c.mesh);
+            coins++;
+            spawnParticles(c.x, c.y, DEPTH/2, 0xffd54f, 6);
+            updateHUD();
+        }
+    }
+    // 材料
+    for (const it of items) {
+        if (it.collected) continue;
+        if (Math.abs(player.x - it.x) < 0.7 && Math.abs(player.y + 0.5 - it.y) < 0.9) {
+            it.collected = true;
+            levelGroup.remove(it.mesh);
+            addItem(it.type, 1);
+            spawnParticles(it.x, it.y, DEPTH/2, 0x81c784, 6);
+            showNotify('获得 ' + itemDefs[it.type].name);
+        }
+    }
+    // 弹簧
+    for (const s of springs) {
+        if (Math.abs(player.x - s.x) < 0.7 && player.vy <= 0 &&
+            player.y > s.y - 0.3 && player.y < s.y + 0.6) {
+            player.vy = 0.55;
+            player.onGround = false;
+            s.compressed = 12;
+            spawnParticles(s.x, s.y+0.3, DEPTH/2, 0xffb74d, 5);
+        }
+    }
+    // 尖刺
+    for (const s of spikes) {
+        if (invincible <= 0 && Math.abs(player.x - s.x) < 0.65 &&
+            player.y > s.y - 0.4 && player.y < s.y + 0.5) {
+            takeDamage(1);
+            player.vy = 0.25;
+        }
+    }
+    // 地面敌人
+    for (const e of enemies) {
+        if (!e.alive) continue;
+        const dx = player.x - e.x, dy = (player.y + 0.5) - e.y;
+        if (Math.abs(dx) < 0.65 && Math.abs(dy) < 0.8) {
+            const stomp = player.vy < 0 && player.y > e.y + 0.1;
+            if (stomp || bonus.damage > 0) {
+                e.alive = false;
+                levelGroup.remove(e.mesh);
+                player.vy = 0.22;
+                coins += 2;
+                spawnParticles(e.x, e.y, DEPTH/2, 0xef5350, 10);
+                updateHUD();
+            } else if (invincible <= 0) {
+                takeDamage(1);
+                player.vx = -Math.sign(dx) * 0.1;
+                player.x += player.vx * 3;
+                player.vy = 0.18;
+            }
+        }
+    }
+    // 飞行敌人
+    for (const e of flyEnemies) {
+        if (!e.alive) continue;
+        if (Math.abs(player.x - e.x) < 0.6 && Math.abs(player.y + 0.5 - e.y) < 0.7) {
+            if (bonus.damage > 0) {
+                e.alive = false;
+                levelGroup.remove(e.mesh);
+                coins += 3;
+                spawnParticles(e.x, e.y, DEPTH/2, 0x9c27b0, 10);
+                updateHUD();
+            } else if (invincible <= 0) {
+                takeDamage(1);
+                player.vy = 0.15;
+            }
+        }
+    }
+    // NPC 检测
+    nearNPC = null;
+    for (const n of npcs) {
+        if (Math.abs(player.x - n.x) < 1.4 && Math.abs(player.y - n.baseY) < 1.5) nearNPC = n;
+    }
+    document.getElementById('npcHint').style.display = nearNPC ? 'block' : 'none';
+    if (nearNPC) document.getElementById('npcHint').textContent = '按 E 与 ' + nearNPC.name + ' 对话';
+
+    // 隐藏墙触发：携带水晶靠近
+    if (!secretRoomActive && (inventory.crystal||0) > 0) {
+        for (const w of secretWalls) {
+            if (w.broken) continue;
+            if (Math.abs(player.x - w.cx) < 1.6 && Math.abs(player.y + 0.5 - w.cy) < 2) {
+                inventory.crystal--;
+                activateSecretRoom();
+                break;
+            }
+        }
+    }
+    // 终点
+    if (goal && Math.abs(player.x - goal.x) < 0.7 && player.y > goal.baseY - 1 && player.y < goal.baseY + 3) {
+        levelComplete();
+    }
+}
+
+function updateEnemies(dt) {
+    for (const e of enemies) {
+        if (!e.alive) continue;
+        e.x += e.vx * dt;
+        if (Math.abs(e.x - e.sx) > e.range) e.vx *= -1;
+        e.mesh.position.x = e.x;
+        e.mesh.rotation.y = e.vx > 0 ? 0 : Math.PI;
+    }
+    for (const e of flyEnemies) {
+        if (!e.alive) continue;
+        e.phase += 0.06 * dt;
+        e.x += e.vx * dt;
+        if (Math.abs(e.x - e.sx) > 2.5) e.vx *= -1;
+        e.y = e.sy + Math.sin(e.phase) * e.range;
+        e.mesh.position.set(e.x, e.y, DEPTH/2);
+        const wing = Math.sin(e.phase * 3) * 0.3;
+        e.wL.rotation.z = wing; e.wR.rotation.z = -wing;
+    }
+}
+
+function animateWorld(dt) {
+    const t = performance.now() / 1000;
+    for (const c of coinsArr) {
+        if (c.collected) continue;
+        c.mesh.rotation.z = t * 3 + c.phase;
+        c.mesh.position.y = c.y + Math.sin(t*2 + c.phase) * 0.12;
+    }
+    for (const it of items) {
+        if (it.collected) continue;
+        it.mesh.position.y = it.y + Math.sin(t*2 + it.phase) * 0.12;
+        it.mesh.rotation.y = t + it.phase;
+    }
+    for (const s of springs) {
+        if (s.compressed > 0) { s.compressed -= dt; s.mesh.scale.y = 0.5; }
+        else s.mesh.scale.y = 1;
+    }
+    if (goal) goal.flag.rotation.y = Math.sin(t * 4) * 0.25;
+    for (const n of npcs) n.mesh.position.y = n.baseY + Math.sin(t*1.5 + n.x) * 0.03;
+    // 水晶微光提示隐藏墙
+    for (const w of secretWalls) {
+        if (w.broken) continue;
+        const near = Math.abs(player.x - w.cx) < 3 && (inventory.crystal||0) > 0;
+        w.mesh.material = near ? MAT.crystal : MAT.brick;
+    }
+    // 阳光跟随玩家
+    sun.position.set(player.x + 8, 18, player.z + 10);
+    sun.target.position.set(player.x, 0, player.z);
+}
+
+// 点是否落在实体方块内（用于相机防穿墙）
+function pointInSolid(x, y, z) {
+    for (const s of solids) {
+        if (Math.abs(s.cx - x) > 2.5) continue;
+        if (x > s.minX - 0.2 && x < s.maxX + 0.2 &&
+            y > s.minY - 0.2 && y < s.maxY + 0.2 &&
+            z > s.minZ - 0.2 && z < s.maxZ + 0.2) return true;
+    }
+    return false;
+}
+
+function updateCamera(dt) {
+    // ① 平滑跟随：镜头缓动跟随角色，避免生硬跟随带来的眩晕
+    const k = Math.min(1, dt * 0.14);
+    smX += (player.x - smX) * k;
+    smY += (player.y + 1 - smY) * k;
+    smZ += (player.z - smZ) * k;
+
+    // ② 平滑缩放
+    camDistCur += (camDist - camDistCur) * Math.min(1, dt * 0.2);
+
+    // ③ 期望机位方向
+    const dx = Math.sin(camYaw) * Math.cos(camPitch);
+    const dz = Math.cos(camYaw) * Math.cos(camPitch);
+    const dy = Math.sin(camPitch);
+
+    // ④ 防穿墙：从目标点向机位方向采样，撞到方块就把镜头拉近
+    let dist = camDistCur;
+    for (let d = 0.8; d <= dist; d += 0.3) {
+        if (pointInSolid(smX + dx*d, smY + dy*d, smZ + dz*d)) {
+            dist = Math.max(1.8, d - 0.5);
+            break;
+        }
+    }
+
+    let cx = smX + dx * dist;
+    let cy = smY + dy * dist;
+    let cz = smZ + dz * dist;
+    cy = Math.max(0.6, cy);              // 不穿到地面以下
+
+    // ⑤ 受伤震动
+    if (camShake > 0) {
+        camShake -= dt;
+        const s = (camShake / 10) * 0.25;
+        cx += (Math.random()-0.5) * s;
+        cy += (Math.random()-0.5) * s;
+    }
+    camera.position.set(cx, cy, cz);
+    camera.lookAt(smX, smY, smZ);
+}
+
+// ================= 开始 / 重开 =================
+window.startGame = function() {
+    document.getElementById('startScreen').classList.add('hidden');
+    gameRunning = true;
+    buildLevel(currentLevel);
+};
+window.restartGame = function() {
+    currentLevel = 0; coins = 0; health = maxHealth; invincible = 0;
+    inventory = {}; charmGiven = false;
+    equipment = { weapon:null, body:null, hands:null, feet:null, accessory:null };
+    recomputeBonus();
+    document.getElementById('gameOver').classList.add('hidden');
+    document.getElementById('winScreen').classList.add('hidden');
+    gameRunning = true;
+    buildLevel(0);
+    updateHUD();
+};
+
+buildLevel(0);   // 进场即渲染场景，开始界面后就能看到 3D 世界
+updateHUD();
+loop();
+</script>
+</body>
+</html>
